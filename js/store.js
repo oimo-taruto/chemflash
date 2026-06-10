@@ -75,19 +75,26 @@ const ChemStore = (() => {
       question_type: type,
       tags: String(q.tags || '').replace(/[,、]/g, ' ').replace(/\s+/g, ' ').trim(),
       difficulty: diff,
+      // origin: 'official'（配布問題）| 'custom'（生徒の自作）。不明('')は起動時の同期で補完
+      origin: q.origin === 'custom' ? 'custom' : (q.origin === 'official' ? 'official' : ''),
     };
   }
+
+  /* 配布版の公式問題。SEED を書き換えて push すると、次回起動時に
+     syncOfficialQuestions が全端末の公式問題を最新版へ揃える */
+  const OFFICIAL = SEED.map(q => normalizeQuestion({ ...q, origin: 'official' }));
 
   /* ---------- 永続化 ---------- */
   let data;
 
   function defaultData() {
     return {
-      questions: SEED.map(q => normalizeQuestion(q)),
+      questions: OFFICIAL.map(q => ({ ...q })),
       progress: {},   // qid -> {first, status('ng'|'vague'|'ok'), attempts, last, srs}
       comments: {},   // qid -> text
       bookmarks: [],  // [qid]
       unlearned: {},  // qid -> true（未習。統計・出題から除外）
+      removedOfficial: {}, // qid -> true（端末側で削除した公式問題。同期で復活させない）
       session: null,  // 演習セッション
       totalCycles: 0, // 通算周回（全範囲セッション完走回数）
       syncId: '',
@@ -112,6 +119,44 @@ const ChemStore = (() => {
     return out;
   }
 
+  function sameContent(a, b) {
+    return a.question === b.question && a.answer === b.answer && a.unit === b.unit
+      && a.sub_unit === b.sub_unit && a.question_type === b.question_type
+      && a.tags === b.tags && a.difficulty === b.difficulty;
+  }
+
+  /* 公式問題を配布版（OFFICIAL）に同期する。push での問題更新を全端末へ届ける仕組み。
+     - 公式: 追加・修正・削除を反映（id は問題文のハッシュなので、答えだけの修正は進捗を引き継ぐ）
+     - 自作（origin:'custom'）: 一切触らない
+     - 公式を端末側で編集したコピーは custom として残し、同じ id の公式は出さない（二重表示防止）。
+       配布版が同じ内容になったら公式へ一本化する */
+  function syncOfficialQuestions(d) {
+    const seedById = new Map(OFFICIAL.map(q => [q.id, q]));
+    const kept = [];
+    const used = new Set(); // 採用済み or 端末側コピーを優先してスキップする公式id
+    for (const q of d.questions) {
+      const seedQ = seedById.get(q.id);
+      const origin = q.origin || (seedQ ? 'official' : 'custom'); // origin の無い旧データを補完
+      if (origin === 'official') {
+        if (!seedQ || used.has(q.id)) continue; // 公式から削除された・重複
+        kept.push({ ...seedQ }); used.add(q.id);
+      } else if (seedQ && sameContent(q, seedQ)) {
+        if (!used.has(q.id)) { kept.push({ ...seedQ }); used.add(q.id); } // 内容が一致 → 公式へ一本化
+      } else {
+        kept.push({ ...q, origin: 'custom' });
+        if (seedQ) used.add(q.id); // 編集済みコピーを優先
+      }
+    }
+    for (const q of OFFICIAL) {
+      if (!used.has(q.id) && !(d.removedOfficial || {})[q.id]) kept.push({ ...q }); // 新しい公式問題
+    }
+    d.questions = kept;
+    if (d.session && Array.isArray(d.session.order)) {
+      const ids = new Set(kept.map(q => q.id));
+      d.session.order = d.session.order.filter(id => ids.has(id));
+    }
+  }
+
   // 現行スキーマの演習セッションか（旧形式・壊れたものは破棄して作り直す）
   function isValidSession(s) {
     return !!(s && Array.isArray(s.order) && s.config && s.counts
@@ -128,9 +173,12 @@ const ChemStore = (() => {
         d.comments = d.comments || {};
         d.bookmarks = d.bookmarks || [];
         d.unlearned = d.unlearned || {};
+        d.removedOfficial = d.removedOfficial || {};
         d.totalCycles = d.totalCycles || 0;
         d.syncId = d.syncId || '';
         if (!isValidSession(d.session)) d.session = null; // 旧形式セッションで画面が固まるのを防ぐ
+        syncOfficialQuestions(d);
+        localStorage.setItem(LS_KEY, JSON.stringify(d));
         return d;
       }
     } catch (e) { console.warn('load failed', e); }
@@ -150,6 +198,7 @@ const ChemStore = (() => {
   function addQuestion(q, overwrite = false) {
     const nq = normalizeQuestion(q);
     if (!nq.question || !nq.answer) return 'invalid';
+    delete data.removedOfficial[nq.id]; // 再追加されたら削除記録を取り消す
     const idx = data.questions.findIndex(x => x.id === nq.id);
     if (idx >= 0) {
       if (!overwrite) return 'skipped';
@@ -163,14 +212,20 @@ const ChemStore = (() => {
   function updateQuestion(id, fields) {
     const idx = data.questions.findIndex(q => q.id === id);
     if (idx < 0) return false;
+    const prev = data.questions[idx];
     // 問題文が変わっても進捗を引き継ぐため id は据え置く
-    data.questions[idx] = normalizeQuestion({ ...data.questions[idx], ...fields, id });
+    const next = normalizeQuestion({ ...prev, ...fields, id });
+    // 公式問題を端末側で編集したら custom 扱いにする（起動時の同期で巻き戻さないため）
+    if (prev.origin === 'official' && !sameContent(prev, next)) next.origin = 'custom';
+    data.questions[idx] = next;
     persist();
     return true;
   }
 
   function deleteQuestion(id) {
-    data.questions = data.questions.filter(q => q.id !== id);
+    const q = byId(id);
+    if (q && q.origin === 'official') data.removedOfficial[id] = true; // 同期で復活させない
+    data.questions = data.questions.filter(x => x.id !== id);
     delete data.progress[id];
     delete data.comments[id];
     delete data.unlearned[id];
@@ -180,6 +235,9 @@ const ChemStore = (() => {
   }
 
   function deleteAllQuestions() {
+    for (const q of data.questions) {
+      if (q.origin === 'official') data.removedOfficial[q.id] = true;
+    }
     data.questions = [];
     data.progress = {};
     data.comments = {};
@@ -454,10 +512,11 @@ const ChemStore = (() => {
 
   function payloadObj() {
     return {
-      app: 'chemflash', version: 2, updatedAt: Date.now(),
+      app: 'chemflash', version: 3, updatedAt: Date.now(),
       questions: data.questions, progress: data.progress,
       comments: data.comments, bookmarks: data.bookmarks,
-      unlearned: data.unlearned, totalCycles: data.totalCycles,
+      unlearned: data.unlearned, removedOfficial: data.removedOfficial,
+      totalCycles: data.totalCycles,
     };
   }
 
@@ -530,8 +589,10 @@ const ChemStore = (() => {
     data.comments = remote.comments || {};
     data.bookmarks = remote.bookmarks || [];
     data.unlearned = remote.unlearned || {};
+    data.removedOfficial = remote.removedOfficial || {};
     data.totalCycles = remote.totalCycles || 0;
     data.session = null; // 端末をまたいだら演習セッションは作り直す
+    syncOfficialQuestions(data); // 古いバックアップを取り込んでも公式問題は最新に揃える
   }
 
   /* ---------- ファイルバックアップ（同期サーバなしでも使える） ---------- */

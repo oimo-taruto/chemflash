@@ -99,6 +99,7 @@ footer.foot {
 .chip.type-丸暗記 { color: var(--yellow); border-color: rgba(251, 191, 36, .45); }
 .chip.type-理由型 { color: var(--pink); border-color: rgba(244, 114, 182, .45); }
 .chip.unit { color: var(--violet); border-color: rgba(167, 139, 250, .4); }
+.chip.custom { color: var(--green, #4ade80); border-color: rgba(74, 222, 128, .45); }
 .diff { color: var(--yellow); font-size: .8rem; letter-spacing: 2px; }
 
 /* ---------- 問題カード ---------- */
@@ -200,6 +201,13 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--c
 .bar-line .bval { text-align: right; font-family: var(--mono); }
 
 /* ---------- 保存リスト ---------- */
+/* ---------- 自作問題フォーム ---------- */
+.cq-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.cq-form textarea { resize: vertical; }
+.cq-form .btn-row { margin-top: 0; }
+.cq-list { border-top: 1px solid var(--line); padding-top: 6px; }
+.cq-list summary .badge { flex-shrink: 0; margin-left: auto; }
+
 details.saved-item { border-bottom: 1px solid var(--line); padding: 10px 0; }
 details.saved-item:last-child { border-bottom: none; }
 details.saved-item summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; gap: 10px; align-items: baseline; }

@@ -500,6 +500,7 @@
               </summary>
               <div class="lib-body">
                 <div class="lib-meta">
+                  ${q.origin === 'custom' ? '<span class="chip custom">✏️ 自作</span>' : ''}
                   <span class="chip sub">${esc(q.sub_unit)}</span>
                   <span class="chip type-${esc(q.question_type)}">${esc(q.question_type)}</span>
                   <span class="diff">${stars(q.difficulty)}</span>
@@ -680,18 +681,20 @@
   /* =========================================================
      保存した問題
      ========================================================= */
+  let cqEditId = null; // 編集中の自作問題id（nullなら新規作成モード）
+
   function renderSaved() {
     const saved = S.raw().bookmarks.map(id => S.byId(id)).filter(Boolean);
-    if (!saved.length) {
-      view.innerHTML = `
-        <section class="panel center">
-          <div class="done-emoji">⭐</div>
-          <h2>保存した問題はまだありません</h2>
-          <p class="muted">問題カード右上の ☆ を押すと、大事な問題をここにストックできます。</p>
-        </section>`;
-      return;
-    }
-    view.innerHTML = `
+    const customs = S.questions().filter(q => q.origin === 'custom');
+    const editing = cqEditId ? S.byId(cqEditId) : null;
+    if (!editing) cqEditId = null; // 削除済みidの編集状態は捨てる
+
+    const savedHTML = !saved.length ? `
+      <section class="panel center">
+        <div class="done-emoji">⭐</div>
+        <h2>保存した問題はまだありません</h2>
+        <p class="muted">問題カード右上の ☆ を押すと、大事な問題をここにストックできます。</p>
+      </section>` : `
       <section class="panel">
         <h2>⭐ 保存した問題 <span class="muted">（${saved.length}問）</span></h2>
         ${saved.map(q => {
@@ -700,6 +703,7 @@
           <details class="saved-item" data-qid="${esc(q.id)}">
             <summary>
               <span>${esc(q.question)}</span>
+              ${q.origin === 'custom' ? '<span class="chip custom">✏️ 自作</span>' : ''}
               <span class="chip sub">${esc(q.sub_unit)}</span>
               <span class="chip type-${esc(q.question_type)}">${esc(q.question_type)}</span>
             </summary>
@@ -713,10 +717,94 @@
           </details>`;
         }).join('')}
       </section>`;
+
+    view.innerHTML = `
+      ${savedHTML}
+      <section class="panel">
+        <h2>✏️ 自作問題 <span class="muted">（${customs.length}問）</span></h2>
+        <p class="muted small">テストや授業で「これ覚えなきゃ」と思ったものを自分の問題にしよう。演習・復習（忘却曲線）にも普通に混ざって出題されます。</p>
+        <div class="cq-form">
+          <textarea id="cq-q" rows="2" placeholder="問題文（例: 〇〇の工業的製法で使う触媒は？）">${editing ? esc(editing.question) : ''}</textarea>
+          <textarea id="cq-a" rows="2" placeholder="答え（1〜2行で簡潔に）">${editing ? esc(editing.answer) : ''}</textarea>
+          <div class="filter-row">
+            <input type="text" id="cq-sub" list="cq-sub-list" placeholder="分野（任意）" value="${editing ? esc(editing.sub_unit === 'その他' ? '' : editing.sub_unit) : ''}">
+            <datalist id="cq-sub-list">${S.subUnits().map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+            <select id="cq-type">${S.TYPES.map(t => `<option value="${esc(t)}" ${editing && editing.question_type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+            <select id="cq-diff">${[1, 2, 3].map(n => `<option value="${n}" ${(editing ? editing.difficulty : 2) === n ? 'selected' : ''}>${'★'.repeat(n)}</option>`).join('')}</select>
+          </div>
+          <input type="text" id="cq-tags" placeholder="キーワード（スペース区切り・任意。例: アンモニア 触媒）" value="${editing ? esc(editing.tags) : ''}">
+          <div class="btn-row">
+            <button class="btn primary" id="cq-save">${editing ? '✔ 更新する' : '＋ 追加する'}</button>
+            ${editing ? '<button class="btn" id="cq-cancel">キャンセル</button>' : ''}
+          </div>
+        </div>
+        ${customs.length ? `<div class="cq-list">${customs.map(q => {
+          const si = S.statusInfo(q.id);
+          return `
+          <details class="saved-item" data-qid="${esc(q.id)}">
+            <summary>
+              <span>${esc(q.question)}</span>
+              <span class="badge b-${si.key}">${esc(si.label)}</span>
+            </summary>
+            <div class="saved-body">
+              <div class="answer-box"><span class="label">ANSWER</span><br>${esc(q.answer)}</div>
+              <div class="btn-row">
+                <button class="btn sm" data-act="cq-edit">✏️ 編集</button>
+                <button class="btn sm danger" data-act="cq-del">🗑 削除</button>
+              </div>
+            </div>
+          </details>`;
+        }).join('')}</div>` : ''}
+      </section>`;
+
     view.querySelectorAll('[data-act="unstar"]').forEach(btn => {
       btn.addEventListener('click', () => {
         S.toggleBookmark(btn.closest('details').dataset.qid);
         toast('保存から外しました');
+        renderSaved();
+      });
+    });
+
+    document.getElementById('cq-save').addEventListener('click', () => {
+      const fields = {
+        question: document.getElementById('cq-q').value.trim(),
+        answer: document.getElementById('cq-a').value.trim(),
+        sub_unit: document.getElementById('cq-sub').value.trim(),
+        question_type: document.getElementById('cq-type').value,
+        difficulty: document.getElementById('cq-diff').value,
+        tags: document.getElementById('cq-tags').value,
+      };
+      if (!fields.question || !fields.answer) { toast('問題文と答えを入力してください', 'bad'); return; }
+      if (cqEditId) {
+        S.updateQuestion(cqEditId, fields);
+        cqEditId = null;
+        toast('自作問題を更新しました ✔', 'good');
+      } else {
+        const res = S.addQuestion({ ...fields, unit: '自作問題', origin: 'custom' });
+        if (res === 'skipped') { toast('同じ問題文がすでにあります', 'bad'); return; }
+        S.persist();
+        toast('自作問題を追加しました ✔ 演習にも出てきます', 'good');
+      }
+      renderSaved();
+    });
+
+    const cqCancel = document.getElementById('cq-cancel');
+    if (cqCancel) cqCancel.addEventListener('click', () => { cqEditId = null; renderSaved(); });
+
+    view.querySelectorAll('[data-act="cq-edit"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        cqEditId = btn.closest('details').dataset.qid;
+        renderSaved();
+        document.getElementById('cq-q').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+    view.querySelectorAll('[data-act="cq-del"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.closest('details').dataset.qid;
+        if (!confirm('この自作問題を削除しますか？（進捗・メモも消えます）')) return;
+        if (cqEditId === id) cqEditId = null;
+        S.deleteQuestion(id);
+        toast('削除しました');
         renderSaved();
       });
     });
@@ -792,12 +880,7 @@
             📂 バックアップを読み込む<input type="file" id="restore-file" accept=".json,application/json" hidden>
           </label>
         </div>
-      </section>
-      ${configured ? `
-      <section class="panel">
-        <p class="muted small">同期先: <span style="font-family:var(--mono)">${esc(S.dbUrl())}</span>
-        <button class="btn sm" id="db-change" style="margin-left:8px">変更</button></p>
-      </section>` : ''}`;
+      </section>`;
 
     const busy = (btn, label) => { btn.disabled = true; btn.textContent = label; };
 
@@ -831,9 +914,6 @@
       } catch (e) { toast(e.message === 'Failed to fetch' ? 'URLに接続できませんでした' : e.message, 'bad'); }
       renderSync();
     });
-
-    const dbChange = document.getElementById('db-change');
-    if (dbChange) dbChange.addEventListener('click', () => { S.setDbUrl(''); renderSync(); });
 
     const createBtn = document.getElementById('create-id');
     if (createBtn) createBtn.addEventListener('click', async () => {
