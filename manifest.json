@@ -1,0 +1,20 @@
+{
+  "name": "ChemFlash 化学暗記ラボ",
+  "short_name": "ChemFlash",
+  "description": "高校化学（無機化学）の暗記事項をフラッシュカードで確認・反復するアプリ",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1424",
+  "theme_color": "#0d1424",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChemFlash | 化学暗記ラボ</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚗️</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d1424">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="appbar">
+    <div class="logo">
+      <span class="flask">⚗️</span>
+      <span class="name">ChemFlash</span>
+      <span class="tagline">無機化学 暗記ラボ</span>
+    </div>
+    <nav class="tabs">
+      <button data-tab="practice" class="active">🧪 演習</button>
+      <button data-tab="review">📌 復習</button>
+      <button data-tab="library">📖 書庫</button>
+      <button data-tab="stats">📊 分析</button>
+      <button data-tab="saved">⭐ 保存</button>
+      <button data-tab="sync">☁ 同期</button>
+    </nav>
+    <a class="navlink" href="admin.html">🛠 問題管理</a>
+  </header>
+
+  <main id="view"></main>
+
+  <footer class="foot">ChemFlash — 高校化学（阪大薬学レベル）暗記事項チェック</footer>
+
+  <div id="toast"></div>
+
+  <script src="js/sync-config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
