@@ -3,6 +3,8 @@
 フラッシュカード形式で無機化学の暗記事項を確認するWebアプリ。
 ログイン不要・「同期ID」でクラウド保存／他端末から復元できます。
 
+**公開URL: https://oimo-taruto.github.io/chemflash/**（GitHub Pages。`main` に push すると約1分で自動更新）
+
 ## 起動方法
 
 ビルド不要の静的サイトです。どちらでも動きます。

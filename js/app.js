@@ -7,6 +7,7 @@
 (() => {
   const view = document.getElementById('view');
   const S = ChemStore;
+  const APP_URL = 'https://oimo-taruto.github.io/chemflash/'; // 公開URL（QR・共有用）
 
   /* ---------- 汎用 ---------- */
   const esc = s => String(s == null ? '' : s)
@@ -766,6 +767,21 @@
       </section>`;
 
     view.innerHTML = `
+      <section class="panel">
+        <h2>📣 友達に教える</h2>
+        <p class="muted small">QRを見せるか、リンクを送るだけ。無料・登録不要・ログイン不要で誰でも使えます。</p>
+        <div class="share-row">
+          <div class="qr-card"><img src="qr.svg" alt="アプリのQRコード" width="150" height="150"></div>
+          <div class="share-side">
+            <div class="share-url">${esc(APP_URL)}</div>
+            <div class="btn-row">
+              <button class="btn sm primary" id="share-btn">📤 友達に送る</button>
+              <button class="btn sm" id="share-copy">📋 リンクをコピー</button>
+            </div>
+            <p class="muted small">「ホーム画面に追加」するとアプリとして使えます。</p>
+          </div>
+        </div>
+      </section>
       ${cloudHTML}
       <section class="panel">
         <h2>💾 ファイルでバックアップ / 復元</h2>
@@ -784,6 +800,21 @@
       </section>` : ''}`;
 
     const busy = (btn, label) => { btn.disabled = true; btn.textContent = label; };
+
+    const shareText = '高校化学の暗記チェックアプリ「ChemFlash」🧪 無料・登録不要！';
+    const copyLink = async () => {
+      try {
+        await navigator.clipboard.writeText(shareText + ' ' + APP_URL);
+        toast('リンクをコピーしました ✔', 'good');
+      } catch (e) { toast('コピーできませんでした。URLを直接見せてください', 'bad'); }
+    };
+    document.getElementById('share-btn').addEventListener('click', async () => {
+      if (navigator.share) {
+        try { await navigator.share({ title: 'ChemFlash', text: shareText, url: APP_URL }); }
+        catch (e) { /* 共有シートのキャンセルは何もしない */ }
+      } else copyLink(); // 共有シートがないブラウザ（PC等）はコピーに切替
+    });
+    document.getElementById('share-copy').addEventListener('click', copyLink);
 
     const dbSave = document.getElementById('db-save');
     if (dbSave) dbSave.addEventListener('click', async () => {
