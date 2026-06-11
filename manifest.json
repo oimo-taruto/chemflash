@@ -1,7 +1,7 @@
 {
   "name": "ChemFlash 化学暗記ラボ",
   "short_name": "ChemFlash",
-  "description": "高校化学（無機化学）の暗記事項をフラッシュカードで確認・反復するアプリ",
+  "description": "高校化学の暗記事項をフラッシュカードで確認・反復するアプリ",
   "start_url": "index.html",
   "scope": "./",
   "display": "standalone",

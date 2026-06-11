@@ -24,7 +24,7 @@ const ChemStore = (() => {
 
   /* ---------- 公式問題（原本は js/seed.js。store.js より先に読み込むこと） ---------- */
   const SEED = ((typeof window !== 'undefined' && window.CHEMFLASH_SEED) || [])
-    .map(r => ({ question: r[0], answer: r[1], unit: DEFAULT_UNIT, sub_unit: r[2], question_type: r[3], tags: r[4], difficulty: r[5] }));
+    .map(r => ({ question: r[0], answer: r[1], unit: r[6] || DEFAULT_UNIT, sub_unit: r[2], question_type: r[3], tags: r[4], difficulty: r[5] }));
 
   /* ---------- ユーティリティ ---------- */
   function hashId(text) {
