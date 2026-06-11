@@ -441,6 +441,7 @@
      ========================================================= */
   const libState = { search: '', sub: '', type: '', diff: '', tag: '', status: '' };
   let pendingTag = null;
+  let scopeOpen = false; // 学習範囲パネルの開閉を再描画後も保つ
 
   function openLibraryWithTag(tag) {
     pendingTag = tag || '';
@@ -451,6 +452,43 @@
     ['', 'すべての状態'], ['untouched', '未着手'], ['ng', 'わからない'],
     ['vague', 'あいまい'], ['ok', '完璧'], ['graduated', '🎓定着'], ['unlearned', '未習'],
   ];
+
+  /* ---------- 学習範囲（未習の一括設定） ---------- */
+  // 範囲のチェック状態: 全部未習=未習, 一部未習=部分, 0=学習中
+  function scopeState(unit, sub) {
+    const { total, unlearned } = S.unlearnedStat(unit, sub);
+    if (unlearned === 0) return 'on';        // 全部「習った」
+    if (unlearned === total) return 'off';   // 全部「未習」
+    return 'partial';                        // 一部だけ未習
+  }
+  function scopeRowHTML(unit, sub) {
+    const label = sub || unit;
+    const st = scopeState(unit, sub);
+    const { total, unlearned } = S.unlearnedStat(unit, sub);
+    const cls = st === 'on' ? 'on' : st === 'off' ? 'off' : 'partial';
+    const mark = st === 'on' ? '✓' : st === 'off' ? '⤳' : '–';
+    const note = st === 'off' ? `未習 ${total}問` : st === 'partial' ? `未習 ${unlearned}/${total}` : `${total}問`;
+    return `<button class="scope-row ${cls}" data-unit="${esc(unit)}" ${sub ? `data-sub="${esc(sub)}"` : ''}>
+      <span class="scope-check">${mark}</span>
+      <span class="scope-label">${esc(label)}</span>
+      <span class="scope-note">${note}</span>
+    </button>`;
+  }
+  function scopePanelHTML() {
+    const open = scopeOpen ? ' open' : '';
+    const body = S.units().map(u => `
+      <div class="scope-unit">
+        ${scopeRowHTML(u, null)}
+        <div class="scope-subs">
+          ${S.subUnitsOfUnit(u).map(s => scopeRowHTML(u, s)).join('')}
+        </div>
+      </div>`).join('');
+    return `<details class="panel scope-panel"${open}>
+      <summary><h2 style="display:inline">🎚 学習範囲（習った範囲だけ出題）</h2></summary>
+      <p class="muted small">まだ授業で習っていない単元・分野は「⤳ 未習」にしておくと、演習・復習・分析からまとめて外れます。習ったらタップで戻せます。タップで <b>習った ⇄ 未習</b> を切り替え。</p>
+      <div class="scope-grid">${body}</div>
+    </details>`;
+  }
 
   function renderLibrary() {
     if (pendingTag !== null) { libState.tag = pendingTag; pendingTag = null; }
@@ -477,6 +515,7 @@
     });
 
     view.innerHTML = `
+      ${scopePanelHTML()}
       <section class="panel">
         <h2>📖 書庫 <span class="muted" id="lib-count">（${list.length}問）</span></h2>
         <p class="muted small">読むだけ・採点なし。テスト前の総ざらいに。タップで答え表示。</p>
@@ -519,6 +558,22 @@
       </section>`;
 
     const reRender = () => renderLibrary();
+
+    // 学習範囲パネル: 開閉状態の保持＋単元/分野まるごとの未習トグル
+    const scopePanel = view.querySelector('.scope-panel');
+    if (scopePanel) {
+      scopePanel.addEventListener('toggle', () => { scopeOpen = scopePanel.open; });
+      scopePanel.querySelectorAll('.scope-row').forEach(b =>
+        b.addEventListener('click', e => {
+          e.preventDefault();
+          const unit = b.dataset.unit, sub = b.dataset.sub || null;
+          const turnOff = scopeState(unit, sub) === 'on'; // 全部習った → 未習にする
+          S.setUnlearnedScope(unit, sub, turnOff);
+          toast(turnOff ? `${sub || unit} を未習にしました` : `${sub || unit} を学習範囲に戻しました`);
+          reRender();
+        }));
+    }
+
     const si = document.getElementById('lib-search');
     si.addEventListener('input', e => { libState.search = e.target.value; updateLibList(); });
     document.getElementById('lib-sub').addEventListener('change', e => { libState.sub = e.target.value; reRender(); });

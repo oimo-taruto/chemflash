@@ -249,6 +249,22 @@ const ChemStore = (() => {
     }
     persist();
   }
+  // 学習範囲設定用: unit（必須）・sub（省略で単元まるごと）で範囲指定して一括ON/OFF
+  function scopeQuestions(unit, sub) {
+    return data.questions.filter(q => q.unit === unit && (!sub || q.sub_unit === sub));
+  }
+  function setUnlearnedScope(unit, sub, on) {
+    for (const q of scopeQuestions(unit, sub)) {
+      if (on) data.unlearned[q.id] = true; else delete data.unlearned[q.id];
+    }
+    persist();
+  }
+  // その範囲の {total, unlearned} を返す（チェック状態とバッジ表示に使う）
+  function unlearnedStat(unit, sub) {
+    const qs = scopeQuestions(unit, sub);
+    const u = qs.reduce((n, q) => n + (data.unlearned[q.id] ? 1 : 0), 0);
+    return { total: qs.length, unlearned: u, learned: qs.length - u };
+  }
 
   /* ---------- 解答・忘却曲線 ---------- */
   const dayStr = ts => new Date(ts).toLocaleDateString('sv-SE'); // YYYY-MM-DD（ローカル）
@@ -588,7 +604,7 @@ const ChemStore = (() => {
     questions, byId, subUnits, subUnitsOfUnit, units, allTags, tagsOf,
     addQuestion, updateQuestion, deleteQuestion, deleteAllQuestions,
     recordAnswer, progressOf, statusInfo,
-    isUnlearned, setUnlearned, setUnlearnedSubUnit,
+    isUnlearned, setUnlearned, setUnlearnedSubUnit, setUnlearnedScope, unlearnedStat,
     reviewWrongIds, dueTodayIds, dueCount, graduatedCount, filterIds,
     setComment, commentOf,
     toggleBookmark, isBookmarked,
