@@ -935,6 +935,14 @@
             📂 バックアップを読み込む<input type="file" id="restore-file" accept=".json,application/json" hidden>
           </label>
         </div>
+      </section>
+      <section class="panel">
+        <h2>📣 フィードバック</h2>
+        <p class="muted small">不具合・誤字・「ここが使いにくい」などがあれば送ってください（質問への回答はできません）。</p>
+        <textarea id="fb-text" rows="3" placeholder="例: 〇〇の問題で答えが違う気がします／〇〇タブが見づらいです"></textarea>
+        <div class="btn-row">
+          <button class="btn primary" id="fb-send">送信する</button>
+        </div>
       </section>`;
 
     const busy = (btn, label) => { btn.disabled = true; btn.textContent = label; };
@@ -1015,6 +1023,21 @@
       toast('バックアップを書き出しました ⬇', 'good');
     });
 
+    const fbSend = document.getElementById('fb-send');
+    fbSend.addEventListener('click', async () => {
+      const text = document.getElementById('fb-text').value.trim();
+      if (!text) { toast('内容を入力してください', 'bad'); return; }
+      busy(fbSend, '送信中…');
+      try {
+        await S.sendFeedback(text);
+        toast('送信しました。ありがとうございます！', 'good');
+        renderSync();
+      } catch (e) {
+        toast(e.message, 'bad');
+        fbSend.disabled = false; fbSend.textContent = '送信する';
+      }
+    });
+
     document.getElementById('restore-file').addEventListener('change', e => {
       const file = e.target.files[0];
       if (!file) return;
@@ -1048,10 +1071,11 @@
   function updateBadges() {
     const due = S.dueCount();
     const wrong = S.reviewWrongIds().length;
-    const btn = document.querySelector('nav.tabs button[data-tab="review"]');
-    if (btn) {
+    const badge = document.getElementById('review-badge');
+    if (badge) {
       const n = due + wrong;
-      btn.innerHTML = '📌 復習' + (n ? ` <span class="navbadge">${n}</span>` : '');
+      badge.hidden = !n;
+      badge.textContent = n;
     }
   }
 
@@ -1075,6 +1099,11 @@
 
   document.querySelectorAll('nav.tabs button').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  /* ---------- 使い方ダイアログ ---------- */
+  const helpDialog = document.getElementById('help-dialog');
+  document.getElementById('help-btn').addEventListener('click', () => helpDialog.showModal());
+  document.getElementById('help-close').addEventListener('click', () => helpDialog.close());
 
   updateBadges();
   switchTab('practice');

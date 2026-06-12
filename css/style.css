@@ -50,12 +50,20 @@ header.appbar {
   font-weight: 800; font-size: 1.2rem; letter-spacing: .02em;
   white-space: nowrap;
 }
-.logo .flask { font-size: 1.3rem; }
+.logo .flask { display: inline-flex; color: var(--cyan); }
+.logo .flask .icon { width: 1.4rem; height: 1.4rem; }
 .logo .name {
   background: linear-gradient(90deg, var(--cyan), var(--violet), var(--pink));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .logo .tagline { font-size: .72rem; font-weight: 500; color: var(--text-dim); }
+
+/* ---------- アイコン ---------- */
+.icon {
+  width: 1.05em; height: 1.05em; vertical-align: -0.18em;
+  flex-shrink: 0; stroke-width: 2.2;
+}
+nav.tabs button .icon, .navlink .icon { margin-right: 3px; }
 
 nav.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 nav.tabs button, .navlink {
@@ -63,12 +71,15 @@ nav.tabs button, .navlink {
   font: inherit; font-size: .9rem; font-weight: 600;
   padding: 7px 14px; border-radius: 999px; cursor: pointer;
   text-decoration: none; transition: .15s;
+  display: inline-flex; align-items: center;
 }
 nav.tabs button:hover, .navlink:hover { color: var(--text); background: var(--card); }
 nav.tabs button.active {
   color: #0d1424; background: linear-gradient(90deg, var(--cyan), var(--violet));
 }
 .navlink { border-color: var(--line); }
+.navlink.icon-btn { padding: 7px 10px; }
+.navlink.icon-btn .icon { margin-right: 0; width: 1.2em; height: 1.2em; }
 
 main { max-width: 860px; margin: 0 auto; padding: 26px 18px 80px; }
 
@@ -300,8 +311,34 @@ pre.csv-help {
 dialog {
   background: var(--card); color: var(--text); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 22px; max-width: 560px; width: calc(100% - 40px);
+  max-height: 85vh; overflow-y: auto;
 }
 dialog::backdrop { background: rgba(5, 8, 16, .7); backdrop-filter: blur(3px); }
+
+/* ---------- 使い方ダイアログ ---------- */
+#help-dialog .help-list { margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; }
+#help-dialog .help-item {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg-soft);
+}
+#help-dialog .help-item summary {
+  display: flex; align-items: center; gap: 8px; padding: 11px 12px;
+  font-size: .92rem; font-weight: 700; cursor: pointer; list-style: none;
+}
+#help-dialog .help-item summary::-webkit-details-marker { display: none; }
+#help-dialog .help-item summary .icon:first-child { color: var(--cyan); }
+#help-dialog .help-item summary .chevron { margin-left: auto; color: var(--text-dim); }
+#help-dialog .help-item[open] summary .chevron { transform: rotate(180deg); }
+#help-dialog .help-body { padding: 0 14px 12px 38px; }
+#help-dialog .help-body ul { margin: 0; padding-left: 1.2em; font-size: .88rem; }
+#help-dialog .help-body li { margin-bottom: 5px; }
+#help-dialog .help-body li:last-child { margin-bottom: 0; }
+#help-dialog .help-body p { font-size: .88rem; margin: 0; }
+
+/* ---------- フィードバック ---------- */
+.fb-item { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.fb-item:last-child { border-bottom: none; }
+.fb-item .fb-date { color: var(--text-dim); font-size: .74rem; margin-bottom: 4px; }
+.fb-item .fb-text { white-space: pre-wrap; margin-bottom: 6px; font-size: .9rem; }
 
 /* ---------- 完了画面 ---------- */
 .done-emoji { font-size: 3rem; margin: 6px 0; }
@@ -330,10 +367,11 @@ dialog::backdrop { background: rgba(5, 8, 16, .7); backdrop-filter: blur(3px); }
 
 /* ===== ナビバッジ ===== */
 .navbadge {
-  display: inline-block; min-width: 18px; padding: 0 5px;
+  display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 5px;
   background: var(--pink); color: #2a0716; border-radius: 99px;
   font-size: .7rem; font-weight: 800; text-align: center;
 }
+.navbadge[hidden] { display: none; }
 
 /* ===== 演習スタート画面 ===== */
 .start-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }

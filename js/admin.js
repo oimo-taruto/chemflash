@@ -22,6 +22,39 @@
     toastTimer = setTimeout(() => { el.className = ''; }, 2200);
   }
 
+  /* ---------- フィードバック ---------- */
+  async function loadFeedback() {
+    const wrap = document.getElementById('feedback-list');
+    const url = S.dbUrl();
+    if (!url) { wrap.innerHTML = '<p class="muted small">送信先（同期サーバ）が未設定です</p>'; return; }
+    wrap.innerHTML = '<p class="muted small">読み込み中…</p>';
+    try {
+      const res = await fetch(url + '/chemflash/feedback.json');
+      if (!res.ok) throw new Error('読み込みに失敗しました (' + res.status + ')');
+      const list = (await res.json()) || {};
+      const items = Object.entries(list).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+      if (!items.length) { wrap.innerHTML = '<p class="muted small">フィードバックはまだありません</p>'; return; }
+      wrap.innerHTML = items.map(([id, f]) => `
+        <div class="fb-item" data-id="${esc(id)}">
+          <div class="fb-date">${f.at ? new Date(f.at).toLocaleString('ja-JP') : ''}</div>
+          <div class="fb-text">${esc(f.text || '')}</div>
+          <button class="btn sm danger" data-act="fb-del">削除</button>
+        </div>`).join('');
+      wrap.querySelectorAll('[data-act="fb-del"]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('このフィードバックを削除しますか？')) return;
+          const id = btn.closest('.fb-item').dataset.id;
+          await fetch(url + '/chemflash/feedback/' + encodeURIComponent(id) + '.json', { method: 'DELETE' });
+          loadFeedback();
+        });
+      });
+    } catch (e) {
+      wrap.innerHTML = `<p class="muted small">読み込みに失敗しました: ${esc(e.message)}</p>`;
+    }
+  }
+  document.getElementById('fb-refresh').addEventListener('click', loadFeedback);
+  loadFeedback();
+
   /* ---------- CSV インポート ---------- */
   function runImport(text) {
     const overwrite = document.getElementById('csv-overwrite').checked;

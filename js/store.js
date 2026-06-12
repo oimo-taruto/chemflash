@@ -557,6 +557,19 @@ const ChemStore = (() => {
     persistLocal();
   }
 
+  /* ---------- フィードバック（テキストのみ・管理画面で確認） ---------- */
+  async function sendFeedback(text) {
+    text = String(text || '').trim();
+    if (!text) throw new Error('内容を入力してください');
+    if (!dbUrl()) throw new Error('送信先が未設定です');
+    const res = await fetch(dbUrl() + '/chemflash/feedback.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, at: Date.now() }),
+    });
+    if (!res.ok) throw new Error('送信に失敗しました (' + res.status + ')');
+  }
+
   async function syncPull(id) {
     id = String(id || '').trim();
     if (!id) throw new Error('同期IDを入力してください');
@@ -610,7 +623,7 @@ const ChemStore = (() => {
     toggleBookmark, isBookmarked,
     metrics, tagMetrics,
     parseCSV, importCSV, exportCSV, CSV_HEADER,
-    syncCreate, syncPush, syncPull, dbUrl, setDbUrl,
+    syncCreate, syncPush, syncPull, dbUrl, setDbUrl, sendFeedback,
     exportBackup, importBackup,
     TYPES, GRADES, GRADE_LABEL, DEFAULT_UNIT, SRS_INTERVALS,
   };

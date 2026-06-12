@@ -13,15 +13,23 @@
 
   <header class="appbar">
     <div class="logo">
-      <span class="flask">🛠</span>
+      <span class="flask"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg></span>
       <span class="name">ChemFlash</span>
       <span class="tagline">問題管理</span>
     </div>
     <nav class="tabs"></nav>
-    <a class="navlink" href="index.html">⚗️ アプリに戻る</a>
+    <a class="navlink" href="index.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg> アプリに戻る</a>
   </header>
 
   <main>
+
+    <!-- フィードバック -->
+    <section class="panel">
+      <h2>📣 生徒からのフィードバック</h2>
+      <p class="muted small">生徒がアプリの「同期」タブから送った内容です。質問の返信はできません。</p>
+      <div id="feedback-list"><p class="muted small">読み込み中…</p></div>
+      <div class="btn-row"><button class="btn sm" id="fb-refresh">🔄 再読み込み</button></div>
+    </section>
 
     <!-- CSV インポート -->
     <section class="panel">

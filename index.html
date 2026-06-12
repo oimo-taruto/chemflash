@@ -14,18 +14,19 @@
 
   <header class="appbar">
     <div class="logo">
-      <span class="flask">⚗️</span>
+      <span class="flask"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg></span>
       <span class="name">ChemFlash</span>
       <span class="tagline">高校化学 暗記ラボ</span>
     </div>
     <nav class="tabs">
-      <button data-tab="practice" class="active">🧪 演習</button>
-      <button data-tab="review">📌 復習</button>
-      <button data-tab="library">📖 書庫</button>
-      <button data-tab="stats">📊 分析</button>
-      <button data-tab="saved">⭐ 保存</button>
-      <button data-tab="sync">☁ 同期</button>
+      <button data-tab="practice" class="active"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2v17.5c0 1.4-1.1 2.5-2.5 2.5c-1.4 0-2.5-1.1-2.5-2.5V2"/><path d="M8.5 2h7"/><path d="M14.5 16h-5"/></svg> 演習</button>
+      <button data-tab="review"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 復習<span class="navbadge" id="review-badge" hidden></span></button>
+      <button data-tab="library"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg> 書庫</button>
+      <button data-tab="stats"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> 分析</button>
+      <button data-tab="saved"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg> 保存</button>
+      <button data-tab="sync"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> 同期</button>
     </nav>
+    <button class="navlink icon-btn" id="help-btn" title="使い方"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
   </header>
 
   <main id="view"></main>
@@ -33,6 +34,93 @@
   <footer class="foot">ChemFlash — 高校化学（阪大薬学レベル）暗記事項チェック</footer>
 
   <div id="toast"></div>
+
+  <dialog id="help-dialog">
+    <h2 style="margin-top:0">📘 ChemFlash の使い方</h2>
+    <p class="muted small">機能が増えてきたので、使い方をここにまとめました。気になる項目をタップすると説明が開きます。わからないことがあれば「同期」タブの📣フィードバックから送ってください。</p>
+
+    <div class="help-list">
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2v17.5c0 1.4-1.1 2.5-2.5 2.5c-1.4 0-2.5-1.1-2.5-2.5V2"/><path d="M8.5 2h7"/><path d="M14.5 16h-5"/></svg> 演習 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <ul>
+            <li>出題数・並び方（ミックス/集中）・範囲・対象を選んで「スタート」。途中でも「ストップ」でやめられます。</li>
+            <li>答えを見たら <b>🙅わからない／🤔あいまい／🙆完璧</b> の3段階で自己評価します。</li>
+            <li>授業でまだやっていない問題は「⤳ まだ習ってない」で出題・統計から外せます（書庫からいつでも戻せます）。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 復習 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <ul>
+            <li><b>🔁 間違い復習</b>: 「わからない・あいまい」だった問題を、その場でもう一度。完璧にできれば一覧から外れます。</li>
+            <li><b>📅 今日の復習</b>: 「そろそろ忘れそうな頃」に自動で出題されます。完璧にするたびに次の間隔が伸び、2回連続でできると🎓定着になります。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg> 書庫 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <ul>
+            <li>採点なしで全問題を見られる一覧です。問題文・答え・キーワードで検索したり、分野・タイプ・難易度・状態で絞り込めます。</li>
+            <li>上にある「🎚 学習範囲」を使うと、授業の進み具合に合わせて単元・分野ごと「未習」⇄「学習中」をまとめて切り替えられます。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> 分析 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <ul>
+            <li>単元ごとの理解度が色でわかります（赤＝苦手）。タップすると分野別の詳細が見られます。</li>
+            <li>「いま優先したい分野（弱点トップ3）」や🎓定着数、今日の復習件数、カバー率もここで確認できます。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg> 保存・自作問題 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <ul>
+            <li>問題カードの☆をタップすると「保存」タブにストックされます。あとで見返したい問題はここに入れておきましょう。</li>
+            <li>「保存」タブの✏️自作問題から、自分だけの問題を追加できます。演習・復習にも普通に混ざって出題されます（他の人には共有されません）。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> 同期・共有 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <ul>
+            <li>「同期ID」を発行すると学習データがクラウドに保存され、別の端末でそのIDを入力すれば続きから学習できます。</li>
+            <li>QRコードやリンクを使えば、友達にもアプリを教えられます。</li>
+            <li>サーバを使いたくない場合は「ファイルでバックアップ/復元」も選べます。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg> ホーム画面に追加 <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <p>スマホでこのページを開いて、ブラウザの共有/メニューから「ホーム画面に追加」すればアプリのように使えます。オフラインでも一部の機能は使えます。</p>
+        </div>
+      </details>
+
+      <details class="help-item">
+        <summary><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M7 11h10"/><path d="M7 15h6"/><path d="M7 7h8"/></svg> フィードバック <svg class="icon chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="help-body">
+          <p>「同期」タブの一番下から、不具合や「ここが使いにくい」と思ったことを送れます。質問への返信はできないので、その点だけ注意してください。</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary" id="help-close">閉じる</button>
+    </div>
+  </dialog>
 
   <script src="js/sync-config.js"></script>
   <script src="js/seed.js"></script>
