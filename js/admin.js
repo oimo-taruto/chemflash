@@ -22,6 +22,25 @@
     toastTimer = setTimeout(() => { el.className = ''; }, 2200);
   }
 
+  /* ---------- 利用状況 ---------- */
+  async function loadUserStats() {
+    const wrap = document.getElementById('user-stats');
+    const url = S.dbUrl();
+    if (!url) { wrap.innerHTML = '<p class="muted small">同期サーバが未設定です</p>'; return; }
+    try {
+      const res = await fetch(url + '/chemflash.json?shallow=true');
+      if (!res.ok) throw new Error('読み込みに失敗 (' + res.status + ')');
+      const data = (await res.json()) || {};
+      const count = Object.keys(data).filter(k => k !== 'feedback').length;
+      wrap.innerHTML = `<p style="font-size:1.4rem;font-weight:800;margin:4px 0">${count}<span style="font-size:.85rem;font-weight:400;color:var(--text-dim)"> 人</span></p>
+        <p class="muted small" style="margin:0">同期IDを発行したユーザー数（目安）</p>`;
+    } catch(e) {
+      wrap.innerHTML = `<p class="muted small">読み込みに失敗しました: ${esc(e.message)}</p>`;
+    }
+  }
+  document.getElementById('stats-refresh').addEventListener('click', loadUserStats);
+  loadUserStats();
+
   /* ---------- フィードバック ---------- */
   async function loadFeedback() {
     const wrap = document.getElementById('feedback-list');

@@ -156,7 +156,7 @@ footer.foot {
 .btn.sm { padding: 5px 12px; font-size: .8rem; border-radius: 9px; }
 
 .judge-row { display: flex; gap: 12px; margin-top: 16px; }
-.judge-row .btn { flex: 1; font-size: 1rem; padding: 13px; }
+.judge-row .btn { flex: 1; font-size: 1rem; padding: 13px; white-space: nowrap; }
 
 .reveal-wrap { margin-top: 18px; }
 
@@ -349,6 +349,9 @@ dialog::backdrop { background: rgba(5, 8, 16, .7); backdrop-filter: blur(3px); }
 /* ===== 3段階評価ボタン ===== */
 .judge-q { text-align: center; color: var(--text-dim); font-size: .82rem; margin: 16px 0 8px; }
 .judge-row.grade3 .btn { font-size: .98rem; }
+@media (max-width: 400px) {
+  .judge-row.grade3 .btn { font-size: .78rem; padding: 11px 4px; }
+}
 .btn.vague { border: none; color: #3a2d04; background: var(--yellow); }
 .btn.skip { color: var(--text-dim); border-color: var(--line); margin-top: 8px; }
 .btn.ghost { background: transparent; color: var(--cyan); border-color: rgba(76, 201, 240, .4); }

@@ -359,13 +359,14 @@
   /* =========================================================
      復習モード（🔁間違い復習 / 📅今日の復習）
      ========================================================= */
+  const DUE_CAP = 20;
   const reviewState = { mode: 'wrong', sub: '', type: '', pool: null };
 
   function buildReviewPool() {
     const ids = reviewState.mode === 'due'
       ? S.dueTodayIds(reviewState.sub, reviewState.type)
       : S.reviewWrongIds(reviewState.sub, reviewState.type);
-    reviewState.pool = shuffle(ids);
+    reviewState.pool = shuffle(reviewState.mode === 'due' ? ids.slice(0, DUE_CAP) : ids);
   }
 
   function renderReview() {
@@ -386,22 +387,31 @@
       </div>
       <p class="muted small">${reviewState.mode === 'wrong'
         ? '「完璧」以外（わからない・あいまい）の問題を今すぐ反復。完璧にすると外れます。'
-        : '忘却曲線にそって「そろそろ忘れる頃」の問題が出ます。完璧で間隔が伸び、2回こなすと🎓定着。'}</p>
+        : `忘却曲線にそって「そろそろ忘れる頃」の問題が出ます。完璧で間隔が伸び、2回こなすと🎓定着。${dueN > DUE_CAP ? `（1回${DUE_CAP}問ずつ表示）` : ''}`}</p>
       <div class="filter-row">
         <select id="rv-sub"><option value="">すべての分野</option>${subOptions}</select>
         <select id="rv-type"><option value="">すべてのタイプ</option>${typeOptions}</select>
       </div>`;
 
     if (!reviewState.pool.length) {
-      view.innerHTML = `${head}
-        <section class="panel center">
-          <div class="done-emoji">${reviewState.mode === 'due' ? '☕' : '✨'}</div>
-          <h2>${reviewState.mode === 'due' ? '今日の復習はありません' : 'この条件の復習はありません'}</h2>
-          <p class="muted">${reviewState.mode === 'due'
-            ? 'また期限が来たら自動で出てきます。演習を進めましょう。'
-            : '演習で「あいまい」「わからない」を選んだ問題がここに溜まります。'}</p>
-        </section>`;
+      const remaining = reviewState.mode === 'due'
+        ? S.dueTodayIds(reviewState.sub, reviewState.type).length : 0;
+      const doneBody = remaining > 0
+        ? `<div class="done-emoji">☕</div>
+           <h2>${DUE_CAP}問お疲れさまでした！</h2>
+           <p class="muted">まだ <b>${remaining}</b> 問あります。続けますか？</p>
+           <div class="btn-row" style="justify-content:center">
+             <button class="btn primary" id="rv-continue">続けて復習する</button>
+           </div>`
+        : `<div class="done-emoji">${reviewState.mode === 'due' ? '☕' : '✨'}</div>
+           <h2>${reviewState.mode === 'due' ? '今日の復習はありません' : 'この条件の復習はありません'}</h2>
+           <p class="muted">${reviewState.mode === 'due'
+             ? 'また期限が来たら自動で出てきます。演習を進めましょう。'
+             : '演習で「あいまい」「わからない」を選んだ問題がここに溜まります。'}</p>`;
+      view.innerHTML = `${head}<section class="panel center">${doneBody}</section>`;
       bindReviewControls();
+      const contBtn = document.getElementById('rv-continue');
+      if (contBtn) contBtn.addEventListener('click', () => { buildReviewPool(); renderReview(); });
       return;
     }
 
