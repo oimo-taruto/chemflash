@@ -557,6 +557,22 @@ const ChemStore = (() => {
     persistLocal();
   }
 
+  /* ---------- デバイスping（匿名・利用人数の把握用） ---------- */
+  function pingDevice() {
+    const url = dbUrl();
+    if (!url) return;
+    let id = localStorage.getItem('chemflash_device_id');
+    if (!id) {
+      id = 'dev-' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('chemflash_device_id', id);
+    }
+    fetch(url + '/chemflash/pings/' + encodeURIComponent(id) + '.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ at: Date.now() }),
+    }).catch(() => {});
+  }
+
   /* ---------- フィードバック（テキストのみ・管理画面で確認） ---------- */
   async function sendFeedback(text) {
     text = String(text || '').trim();
@@ -623,7 +639,7 @@ const ChemStore = (() => {
     toggleBookmark, isBookmarked,
     metrics, tagMetrics,
     parseCSV, importCSV, exportCSV, CSV_HEADER,
-    syncCreate, syncPush, syncPull, dbUrl, setDbUrl, sendFeedback,
+    syncCreate, syncPush, syncPull, dbUrl, setDbUrl, pingDevice, sendFeedback,
     exportBackup, importBackup,
     TYPES, GRADES, GRADE_LABEL, DEFAULT_UNIT, SRS_INTERVALS,
   };

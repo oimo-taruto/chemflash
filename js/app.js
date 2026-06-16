@@ -1117,6 +1117,7 @@
 
   updateBadges();
   switchTab('practice');
+  S.pingDevice();
 
   /* ---------- PWA ----------
      ローカル開発（localhost / file:）ではキャッシュの混乱を避けるため登録しない。

@@ -28,12 +28,12 @@
     const url = S.dbUrl();
     if (!url) { wrap.innerHTML = '<p class="muted small">同期サーバが未設定です</p>'; return; }
     try {
-      const res = await fetch(url + '/chemflash.json?shallow=true');
+      const res = await fetch(url + '/chemflash/pings.json?shallow=true');
       if (!res.ok) throw new Error('読み込みに失敗 (' + res.status + ')');
       const data = (await res.json()) || {};
-      const count = Object.keys(data).filter(k => k !== 'feedback').length;
-      wrap.innerHTML = `<p style="font-size:1.4rem;font-weight:800;margin:4px 0">${count}<span style="font-size:.85rem;font-weight:400;color:var(--text-dim)"> 人</span></p>
-        <p class="muted small" style="margin:0">同期IDを発行したユーザー数（目安）</p>`;
+      const count = Object.keys(data).length;
+      wrap.innerHTML = `<p style="font-size:1.4rem;font-weight:800;margin:4px 0">${count}<span style="font-size:.85rem;font-weight:400;color:var(--text-dim)"> 端末</span></p>
+        <p class="muted small" style="margin:0">アプリを開いたことのあるユニーク端末数</p>`;
     } catch(e) {
       wrap.innerHTML = `<p class="muted small">読み込みに失敗しました: ${esc(e.message)}</p>`;
     }
