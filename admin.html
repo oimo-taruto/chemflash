@@ -108,6 +108,9 @@
     <!-- 問題一覧 -->
     <section class="panel">
       <h2>📚 問題一覧 <span class="muted" id="q-count"></span></h2>
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn primary publish-btn">🚀 アプリに配信する</button>
+      </div>
       <div class="filter-row">
         <input type="text" id="f-search" placeholder="🔍 問題文・タグで検索" style="flex:2;min-width:180px">
         <select id="f-sub"><option value="">すべての分野</option></select>
@@ -116,15 +119,18 @@
       <div class="table-wrap">
         <table class="qtable">
           <thead>
-            <tr><th>問題 / 答え</th><th>分野</th><th>タイプ</th><th>難易度</th><th></th></tr>
+            <tr><th style="width:36px"></th><th>問題 / 答え</th><th>分野</th><th>タイプ</th><th>難易度</th><th></th></tr>
           </thead>
           <tbody id="q-tbody"></tbody>
         </table>
       </div>
       <div class="btn-row">
+        <button class="btn primary publish-btn">🚀 アプリに配信する</button>
         <button class="btn" id="export-btn">⬇ CSVエクスポート</button>
         <button class="btn danger" id="delete-all-btn">🗑 全問題を削除</button>
       </div>
+      <p class="muted small">「配信する」を押すと現在の問題リストが Firebase に保存され、生徒がアプリを次に開いたときに自動反映されます。</p>
+      <p id="publish-result" class="small"></p>
     </section>
 
   </main>

@@ -3,7 +3,8 @@
 ## 作業ルール
 
 * **デプロイは push のみ**: `main` に push すると GitHub Pages（`https://oimo-taruto.github.io/chemflash/`）へ即反映。ビルド工程なし。
-* **問題データの修正は `js/seed.js` を直接編集する**。管理画面(admin.html)での編集は端末の localStorage に閉じるため、リポジトリには反映されない。配布フローは「admin.html でCSVエクスポート → seed.js に焼き込み → push」。
+* **問題データの配布フロー（新）**: admin.html で追加・編集後、「🚀 アプリに配信する」ボタンを押す → Firebase の `/chemflash/official_questions.json` に保存 → 生徒が次回アプリを開いたとき自動反映。seed.js の直接編集・push は不要。
+* **seed.js は初期データ兼フォールバック**: Firebase 未到達時（オフライン等）は seed.js の問題リストを使う。seed.js を更新する場合も push するだけでよいが、Firebase 側が優先される点に注意。
 * **絵文字の扱い**: ヘッダー以外（パネル見出し・グレード判定ボタン 🙅🤔🙆 等）の絵文字は意図的に残している。アイコン化はヘッダーのみ（lucide の生SVGをインライン）。
 
 ## プロジェクト概要
@@ -46,6 +47,7 @@ chem-flashcards/
 
 ```
 /chemflash
+  ├── official_questions  # 管理画面から配信した公式問題リスト（配列）。PUT で上書き、GET で全取得
   ├── <syncId>            # 同期IDごとの学習データ全量（任意・同期機能を使った端末のみ）
   │     └── { questions, progress, comments, bookmarks, ... }
   ├── feedback            # 生徒からのテキストフィードバック（POSTでpush生成）
@@ -64,7 +66,7 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 * **自己評価は3段階**（🙅ng / 🤔vague / 🙆ok）。集めるのは3段階、分析の判定は2値、見せ方は3色。
 * **忘却曲線（Leitner式・`SRS_INTERVALS=[7,30]`日）**: 期限が来た問題に「完璧」を付けたときだけ段階アップ（1日1回まで）。完璧3回で🎓卒業。`js/store.js`。
 * **復習は2本立て**: 🔁間違い復習（完璧以外を今すぐ）/ 📅今日の復習（期限到来分）。**今日の復習は1セッション20問キャップ**（`DUE_CAP=20`, app.js）。残りは「続けて復習する」で継続。やる気を削がないため。
-* **問題IDは問題文のハッシュ**（`hashId`）。答え・タグ・分野・難易度の修正は進捗を引き継ぐが、**問題文を変えるとその1問だけ進捗リセット**。
+* **問題IDは問題文のハッシュ**（`hashId`）。ただし `updateQuestion()` は ID を据え置く設計なので、**管理画面経由の編集は問題文を変えても進捗を引き継ぐ**（旧 seed.js 直接編集方式より有利）。seed.js を手動編集して push した場合は問題文変更で ID が変わり、その1問の進捗リセットが起きる点に注意。
 * **公式/自作の区別（origin）**: official は seed.js が原本で push 配信。custom は生徒の個人問題で配信に触れない。詳細は DESIGN.md。
 * **利用人数の把握**: アプリ起動時に `S.pingDevice()` が匿名 deviceId を `/chemflash/pings` に記録。管理画面が件数を shallow query で数える。同期IDの数（旧方式）ではなく、開いた端末数で実利用を計測。
 
@@ -76,10 +78,13 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 * [x] 復習20問キャップ、グレード判定ボタンの改行修正（white-space:nowrap + 小画面 font-size）
 * [x] 管理画面に「利用状況」パネル（匿名デバイスping方式で実利用端末数を表示）
 * [x] ヘリウムの問題を「理想気体に最も近い理由」に差し替え（理論化学/気体の法則/難易度2）
+* [x] 管理画面「🚀 アプリに配信する」ボタン（Firebase `/chemflash/official_questions.json` に PUT → 生徒が次回起動時に自動取得）
+* [x] 配信ボタンを問題一覧の上下両方に配置
+* [x] 管理画面の各問題行にチェックボックス（管理者メモ用・`chemflash_admin_checked` キーで localStorage 保存、生徒側に影響なし）
 
-**直近の作業**: CLAUDE.md（本ファイル）を新規作成。
+**直近の作業**: 管理画面配信機能の追加（Firebase経由でリアルタイム反映）。
 
-**次のTODO**: 配布済みの3端末が新JSを読むようキャッシュ更新（「アプリを閉じて開き直す」案内）。利用端末数が反映されるか確認。
+**次のTODO**: なし（配布済み端末は次回起動で自動更新される）。
 
 **既知の問題**:
 * localStorage を消すと同一生徒が複数端末としてカウントされる（ping方式の宿命・実用上は軽微）。

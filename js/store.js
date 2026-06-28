@@ -52,9 +52,9 @@ const ChemStore = (() => {
     };
   }
 
-  /* 配布版の公式問題。SEED を書き換えて push すると、次回起動時に
-     syncOfficialQuestions が全端末の公式問題を最新版へ揃える */
-  const OFFICIAL = SEED.map(q => normalizeQuestion({ ...q, origin: 'official' }));
+  /* 配布版の公式問題。管理画面で「配信する」か SEED を書き換えて push すると、
+     次回起動時に syncOfficialQuestions が全端末の公式問題を最新版へ揃える */
+  let officialList = SEED.map(q => normalizeQuestion({ ...q, origin: 'official' }));
 
   /* ---------- 永続化 ---------- */
   let data;
@@ -103,7 +103,7 @@ const ChemStore = (() => {
      - 公式を端末側で編集したコピーは custom として残し、同じ id の公式は出さない（二重表示防止）。
        配布版が同じ内容になったら公式へ一本化する */
   function syncOfficialQuestions(d) {
-    const seedById = new Map(OFFICIAL.map(q => [q.id, q]));
+    const seedById = new Map(officialList.map(q => [q.id, q]));
     const kept = [];
     const used = new Set(); // 採用済み or 端末側コピーを優先してスキップする公式id
     for (const q of d.questions) {
@@ -119,7 +119,7 @@ const ChemStore = (() => {
         if (seedQ) used.add(q.id); // 編集済みコピーを優先
       }
     }
-    for (const q of OFFICIAL) {
+    for (const q of officialList) {
       if (!used.has(q.id) && !(d.removedOfficial || {})[q.id]) kept.push({ ...q }); // 新しい公式問題
     }
     d.questions = kept;
@@ -625,7 +625,36 @@ const ChemStore = (() => {
     persistLocal();
   }
 
+  /* ---------- 公式問題の Firebase 配信・受信 ---------- */
+  async function fetchRemoteOfficial() {
+    const url = (typeof window !== 'undefined' && window.CHEMFLASH_SYNC_URL || '').trim().replace(/\/+$/, '');
+    if (!url) return;
+    try {
+      const res = await fetch(url + '/chemflash/official_questions.json');
+      if (!res.ok) return;
+      const qs = await res.json();
+      if (!Array.isArray(qs) || !qs.length) return;
+      officialList = qs.map(q => normalizeQuestion({ ...q, origin: 'official' }));
+      syncOfficialQuestions(data);
+      persistLocal();
+    } catch(e) { /* Firebase 未到達時は seed.js にフォールバック */ }
+  }
+
+  async function publishOfficialQuestions() {
+    const url = dbUrl();
+    if (!url) throw new Error('同期サーバが未設定です');
+    const toPublish = data.questions.map(q => ({ ...q, origin: 'official' }));
+    const res = await fetch(url + '/chemflash/official_questions.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toPublish),
+    });
+    if (!res.ok) throw new Error('配信に失敗しました (' + res.status + ')');
+    officialList = toPublish.map(q => normalizeQuestion(q));
+  }
+
   data = load();
+  const ready = fetchRemoteOfficial();
 
   return {
     raw: () => data,
@@ -640,7 +669,7 @@ const ChemStore = (() => {
     metrics, tagMetrics,
     parseCSV, importCSV, exportCSV, CSV_HEADER,
     syncCreate, syncPush, syncPull, dbUrl, setDbUrl, pingDevice, sendFeedback,
-    exportBackup, importBackup,
+    exportBackup, importBackup, publishOfficialQuestions, ready,
     TYPES, GRADES, GRADE_LABEL, DEFAULT_UNIT, SRS_INTERVALS,
   };
 })();

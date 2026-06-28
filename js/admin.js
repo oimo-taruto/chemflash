@@ -125,6 +125,13 @@
   });
 
   /* ---------- 一覧 ---------- */
+  /* ---------- チェック状態（管理者メモ用・localStorageに保存） ---------- */
+  const CHECKED_KEY = 'chemflash_admin_checked';
+  let checkedIds = new Set(JSON.parse(localStorage.getItem(CHECKED_KEY) || '[]'));
+  function saveChecked() {
+    localStorage.setItem(CHECKED_KEY, JSON.stringify([...checkedIds]));
+  }
+
   const filter = { text: '', sub: '', type: '' };
 
   function refreshFilters() {
@@ -155,6 +162,9 @@
       `（表示 ${qs.length} / 全 ${S.questions().length} 問）`;
     document.getElementById('q-tbody').innerHTML = qs.map(q => `
       <tr data-qid="${esc(q.id)}">
+        <td style="text-align:center;vertical-align:middle">
+          <input type="checkbox" data-act="check" ${checkedIds.has(q.id) ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--green,#4f9)">
+        </td>
         <td class="q-cell">
           <div>${esc(q.question)}</div>
           <div class="ans">→ ${esc(q.answer)}</div>
@@ -166,7 +176,7 @@
           <button class="btn sm" data-act="edit">編集</button>
           <button class="btn sm danger" data-act="del">削除</button>
         </td>
-      </tr>`).join('') || '<tr><td colspan="5" class="muted">該当する問題がありません</td></tr>';
+      </tr>`).join('') || '<tr><td colspan="6" class="muted">該当する問題がありません</td></tr>';
   }
 
   function refreshAll() { refreshFilters(); refreshTable(); }
@@ -208,6 +218,14 @@
     }
   });
 
+  document.getElementById('q-tbody').addEventListener('change', e => {
+    const cb = e.target.closest('input[data-act="check"]');
+    if (!cb) return;
+    const id = cb.closest('tr').dataset.qid;
+    if (cb.checked) checkedIds.add(id); else checkedIds.delete(id);
+    saveChecked();
+  });
+
   editForm.addEventListener('submit', e => {
     if (e.submitter && e.submitter.value === 'cancel') return;
     const f = new FormData(editForm);
@@ -233,6 +251,25 @@
     toast('すべて削除しました');
     refreshAll();
   });
+
+  async function doPublish() {
+    const result = document.getElementById('publish-result');
+    if (!confirm(`現在の ${S.questions().length} 問をアプリに配信します。生徒が次にアプリを開いたときに反映されます。よろしいですか？`)) return;
+    document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = true; b.textContent = '配信中…'; });
+    result.textContent = '';
+    try {
+      await S.publishOfficialQuestions();
+      const n = S.questions().length;
+      result.innerHTML = `✅ ${n} 問を配信しました。生徒がアプリを開き直すと反映されます。`;
+      toast(`${n} 問を配信しました`, 'good');
+    } catch(e) {
+      result.innerHTML = `<span style="color:var(--orange)">⚠ ${esc(e.message)}</span>`;
+      toast('配信に失敗しました', 'bad');
+    } finally {
+      document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = false; b.textContent = '🚀 アプリに配信する'; });
+    }
+  }
+  document.querySelectorAll('.publish-btn').forEach(btn => btn.addEventListener('click', doPublish));
 
   refreshAll();
 })();
