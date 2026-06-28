@@ -168,6 +168,7 @@
         <td class="q-cell">
           <div>${esc(q.question)}</div>
           <div class="ans">→ ${esc(q.answer)}</div>
+          ${q.tags ? `<div class="tags" style="margin-top:3px">${q.tags.split(' ').filter(Boolean).map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
         </td>
         <td><span class="chip sub">${esc(q.sub_unit)}</span></td>
         <td><span class="chip type-${esc(q.question_type)}">${esc(q.question_type)}</span></td>
