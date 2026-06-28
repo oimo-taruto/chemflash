@@ -132,7 +132,7 @@
     localStorage.setItem(CHECKED_KEY, JSON.stringify([...checkedIds]));
   }
 
-  const filter = { text: '', sub: '', type: '' };
+  const filter = { text: '', sub: '', type: '', checked: '' };
 
   function refreshFilters() {
     const subSel = document.getElementById('f-sub');
@@ -153,13 +153,18 @@
     return S.questions().filter(q =>
       (!filter.sub || q.sub_unit === filter.sub) &&
       (!filter.type || q.question_type === filter.type) &&
+      (!filter.checked || (filter.checked === 'checked') === checkedIds.has(q.id)) &&
       (!t || (q.question + ' ' + q.answer + ' ' + q.tags).toLowerCase().includes(t)));
   }
 
   function refreshTable() {
     const qs = visibleQuestions();
+    const all = S.questions();
+    const checkedCount = all.filter(q => checkedIds.has(q.id)).length;
     document.getElementById('q-count').textContent =
-      `（表示 ${qs.length} / 全 ${S.questions().length} 問）`;
+      `（表示 ${qs.length} / 全 ${all.length} 問）`;
+    document.getElementById('check-stats').textContent =
+      `チェック済み：${checkedCount}問　未チェック：${all.length - checkedCount}問`;
     document.getElementById('q-tbody').innerHTML = qs.map(q => `
       <tr data-qid="${esc(q.id)}">
         <td style="text-align:center;vertical-align:middle">
@@ -190,6 +195,9 @@
   });
   document.getElementById('f-type').addEventListener('change', e => {
     filter.type = e.target.value; refreshTable();
+  });
+  document.getElementById('f-checked').addEventListener('change', e => {
+    filter.checked = e.target.value; refreshTable();
   });
 
   /* ---------- 編集 / 削除（行ボタン） ---------- */
@@ -225,6 +233,7 @@
     const id = cb.closest('tr').dataset.qid;
     if (cb.checked) checkedIds.add(id); else checkedIds.delete(id);
     saveChecked();
+    refreshTable();
   });
 
   editForm.addEventListener('submit', e => {
