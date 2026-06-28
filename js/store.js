@@ -185,9 +185,12 @@ const ChemStore = (() => {
     const idx = data.questions.findIndex(q => q.id === id);
     if (idx < 0) return false;
     const prev = data.questions[idx];
-    // 問題文が変わっても進捗を引き継ぐため id は据え置く
-    const next = normalizeQuestion({ ...prev, ...fields, id });
-    // 公式問題を端末側で編集したら custom 扱いにする（起動時の同期で巻き戻さないため）
+    // 問題文・答えが変わったら ID を再計算 → 配信時に生徒側の進捗をリセット
+    // タグ・難易度・分野などの変更では ID を据え置き → 進捗引き継ぎ
+    const newQ = String(fields.question != null ? fields.question : prev.question).trim();
+    const newA = String(fields.answer != null ? fields.answer : prev.answer).trim();
+    const contentChanged = newQ !== prev.question || newA !== prev.answer;
+    const next = normalizeQuestion({ ...prev, ...fields, id: contentChanged ? undefined : id });
     if (prev.origin === 'official' && !sameContent(prev, next)) next.origin = 'custom';
     data.questions[idx] = next;
     persist();

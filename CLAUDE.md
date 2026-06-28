@@ -66,7 +66,10 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 * **自己評価は3段階**（🙅ng / 🤔vague / 🙆ok）。集めるのは3段階、分析の判定は2値、見せ方は3色。
 * **忘却曲線（Leitner式・`SRS_INTERVALS=[7,30]`日）**: 期限が来た問題に「完璧」を付けたときだけ段階アップ（1日1回まで）。完璧3回で🎓卒業。`js/store.js`。
 * **復習は2本立て**: 🔁間違い復習（完璧以外を今すぐ）/ 📅今日の復習（期限到来分）。**今日の復習は1セッション20問キャップ**（`DUE_CAP=20`, app.js）。残りは「続けて復習する」で継続。やる気を削がないため。
-* **問題IDは問題文のハッシュ**（`hashId`）。ただし `updateQuestion()` は ID を据え置く設計なので、**管理画面経由の編集は問題文を変えても進捗を引き継ぐ**（旧 seed.js 直接編集方式より有利）。seed.js を手動編集して push した場合は問題文変更で ID が変わり、その1問の進捗リセットが起きる点に注意。
+* **問題IDは問題文のハッシュ**（`hashId`）。`updateQuestion()` の挙動:
+  - `question` または `answer` を変更 → ID を再計算 → 配信後に生徒側でその問題の進捗がリセット（未着手扱い）
+  - `difficulty`・`tags`・`sub_unit`・`question_type` のみ変更 → ID 据え置き → 生徒側の進捗は変化なし
+  - seed.js を直接編集して push した場合は常に問題文ハッシュでID計算されるため、管理画面と同じ挙動
 * **公式/自作の区別（origin）**: official は seed.js が原本で push 配信。custom は生徒の個人問題で配信に触れない。詳細は DESIGN.md。
 * **利用人数の把握**: アプリ起動時に `S.pingDevice()` が匿名 deviceId を `/chemflash/pings` に記録。管理画面が件数を shallow query で数える。同期IDの数（旧方式）ではなく、開いた端末数で実利用を計測。
 
