@@ -85,12 +85,15 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 * [x] 管理画面「🚀 アプリに配信する」ボタン（Firebase `/chemflash/official_questions.json` に PUT → 生徒が次回起動時に自動取得）
 * [x] 配信ボタンを問題一覧の上下両方に配置
 * [x] 管理画面の各問題行にチェックボックス（管理者メモ用。Firebase `/chemflash/admin_checked` で端末間共有・localStorageはキャッシュ、生徒側に影響なし）
+* [x] 【重大バグ修正】`defaultData()` が旧変数名 `OFFICIAL`（`officialList` に改名済み）を参照しており、新規ブラウザ（localStorage空）で `ReferenceError` により ChemStore 初期化が完全に失敗する不具合を修正。
+* [x] 【重大バグ修正】`load()` 内で Firebase 取得前の古い（seed.jsだけの）リストで公式問題の同期処理を実行し、その不完全な結果を即座に localStorage へ保存してしまう不具合を修正。通信失敗が重なるたびに問題が少しずつ失われる原因になっていた（PC側で713→665問に減少した根本原因）。同期は `fetchRemoteOfficial()` 内で一度だけ、取得成否に応じた確定リストで実行するよう変更。admin.js/app.js は `S.ready` 解決後に再描画するよう追加。
 
-**直近の作業**: 管理画面配信機能の追加（Firebase経由でリアルタイム反映）。
+**直近の作業**: 公式問題データ消失バグの調査・修正（PC側で713問→665問に減っていた事象）。Firebase上の`official_questions`は720件（713+編集/追加分）で無事だったため、コード側のバグ修正のみでPCも次回開いたときに正しい件数に復元される。
 
-**次のTODO**: なし（配布済み端末は次回起動で自動更新される）。
+**次のTODO**: PC・iPad双方でadmin.htmlを開き直し、720問に復元されたか確認。復元後、内容が意図した状態か（720件が正しいか、削除したかった問題が残っていないか）を目視確認。
 
 **既知の問題**:
+* 公式問題の同期処理は「Firebase取得成功時は最新リスト、失敗時はseed.jsのリスト」で一度だけ実行される設計。オフラインが続く端末は seed.js 基準の内容に留まり、Firebase配信分（編集・追加分）が反映されない可能性がある（次回オンライン時に自動解消）。
 * localStorage を消すと同一生徒が複数端末としてカウントされる（ping方式の宿命・実用上は軽微）。
 * `preview_screenshot` がこの環境でタイムアウトしがち（harness 由来。`preview_inspect`/`preview_snapshot` で代替）。
 * `store.js` 冒頭コメントに旧実装（jsonblob.com）の記述が残存（実体は Firebase）。

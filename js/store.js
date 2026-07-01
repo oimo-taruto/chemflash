@@ -61,7 +61,7 @@ const ChemStore = (() => {
 
   function defaultData() {
     return {
-      questions: OFFICIAL.map(q => ({ ...q })),
+      questions: officialList.map(q => ({ ...q })),
       progress: {},   // qid -> {first, status('ng'|'vague'|'ok'), attempts, last, srs}
       comments: {},   // qid -> text
       bookmarks: [],  // [qid]
@@ -97,7 +97,7 @@ const ChemStore = (() => {
       && a.tags === b.tags && a.difficulty === b.difficulty;
   }
 
-  /* 公式問題を配布版（OFFICIAL）に同期する。push での問題更新を全端末へ届ける仕組み。
+  /* 公式問題を配布版（officialList）に同期する。管理画面の配信/push を全端末へ届ける仕組み。
      - 公式: 追加・修正・削除を反映（id は問題文のハッシュなので、答えだけの修正は進捗を引き継ぐ）
      - 自作（origin:'custom'）: 一切触らない
      - 公式を端末側で編集したコピーは custom として残し、同じ id の公式は出さない（二重表示防止）。
@@ -149,7 +149,9 @@ const ChemStore = (() => {
         d.totalCycles = d.totalCycles || 0;
         d.syncId = d.syncId || '';
         if (!isValidSession(d.session)) d.session = null; // 旧形式セッションで画面が固まるのを防ぐ
-        syncOfficialQuestions(d);
+        // 公式問題の同期は fetchRemoteOfficial 側で一度だけ行う（Firebase取得前の
+        // seed.js だけの古いリストで同期して保存してしまうと、通信失敗時にその
+        // 不完全な状態が永続化され、再読み込みのたびに問題が失われる恐れがあるため）
         localStorage.setItem(LS_KEY, JSON.stringify(d));
         return d;
       }
@@ -628,19 +630,26 @@ const ChemStore = (() => {
     persistLocal();
   }
 
-  /* ---------- 公式問題の Firebase 配信・受信 ---------- */
+  /* ---------- 公式問題の Firebase 配信・受信 ----------
+     同期処理（syncOfficialQuestions）はここで一度だけ実行する。
+     取得成功時は最新の officialList で、失敗/未設定時は seed.js のリストで同期する。
+     load() 内で先に古いリストで同期してしまうと、通信失敗時にその不完全な結果が
+     localStorage に永続化され、再読み込みのたびに問題が失われていく事故につながるため。 */
   async function fetchRemoteOfficial() {
     const url = (typeof window !== 'undefined' && window.CHEMFLASH_SYNC_URL || '').trim().replace(/\/+$/, '');
-    if (!url) return;
-    try {
-      const res = await fetch(url + '/chemflash/official_questions.json');
-      if (!res.ok) return;
-      const qs = await res.json();
-      if (!Array.isArray(qs) || !qs.length) return;
-      officialList = qs.map(q => normalizeQuestion({ ...q, origin: 'official' }));
-      syncOfficialQuestions(data);
-      persistLocal();
-    } catch(e) { /* Firebase 未到達時は seed.js にフォールバック */ }
+    if (url) {
+      try {
+        const res = await fetch(url + '/chemflash/official_questions.json');
+        if (res.ok) {
+          const qs = await res.json();
+          if (Array.isArray(qs) && qs.length) {
+            officialList = qs.map(q => normalizeQuestion({ ...q, origin: 'official' }));
+          }
+        }
+      } catch (e) { /* Firebase 未到達時は seed.js のリストにフォールバック */ }
+    }
+    syncOfficialQuestions(data);
+    persistLocal();
   }
 
   async function publishOfficialQuestions() {

@@ -312,4 +312,5 @@
 
   refreshAll();
   loadCheckedRemote();
+  S.ready.then(refreshAll); // Firebase から公式問題の最新リストを取得できたら表示を更新
 })();

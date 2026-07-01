@@ -1098,7 +1098,9 @@
     sync: renderSync,
   };
 
+  let currentTab = 'practice';
   function switchTab(name) {
+    currentTab = name;
     document.querySelectorAll('nav.tabs button').forEach(b =>
       b.classList.toggle('active', b.dataset.tab === name));
     if (name === 'review') reviewState.pool = null;
@@ -1118,6 +1120,7 @@
   updateBadges();
   switchTab('practice');
   S.pingDevice();
+  S.ready.then(() => { updateBadges(); (renderers[currentTab] || renderPractice)(); }); // Firebase から公式問題の最新リストを取得できたら表示を更新
 
   /* ---------- PWA ----------
      ローカル開発（localhost / file:）ではキャッシュの混乱を避けるため登録しない。
