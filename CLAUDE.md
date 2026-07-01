@@ -48,6 +48,7 @@ chem-flashcards/
 ```
 /chemflash
   ├── official_questions  # 管理画面から配信した公式問題リスト（配列）。PUT で上書き、GET で全取得
+  ├── admin_checked       # 管理画面のチェック済み問題ID一覧（配列）。端末間で共有（PC⇄iPad等）
   ├── <syncId>            # 同期IDごとの学習データ全量（任意・同期機能を使った端末のみ）
   │     └── { questions, progress, comments, bookmarks, ... }
   ├── feedback            # 生徒からのテキストフィードバック（POSTでpush生成）
@@ -83,7 +84,7 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 * [x] ヘリウムの問題を「理想気体に最も近い理由」に差し替え（理論化学/気体の法則/難易度2）
 * [x] 管理画面「🚀 アプリに配信する」ボタン（Firebase `/chemflash/official_questions.json` に PUT → 生徒が次回起動時に自動取得）
 * [x] 配信ボタンを問題一覧の上下両方に配置
-* [x] 管理画面の各問題行にチェックボックス（管理者メモ用・`chemflash_admin_checked` キーで localStorage 保存、生徒側に影響なし）
+* [x] 管理画面の各問題行にチェックボックス（管理者メモ用。Firebase `/chemflash/admin_checked` で端末間共有・localStorageはキャッシュ、生徒側に影響なし）
 
 **直近の作業**: 管理画面配信機能の追加（Firebase経由でリアルタイム反映）。
 

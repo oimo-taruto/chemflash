@@ -125,11 +125,40 @@
   });
 
   /* ---------- 一覧 ---------- */
-  /* ---------- チェック状態（管理者メモ用・localStorageに保存） ---------- */
+  /* ---------- チェック状態（管理者メモ用・Firebaseで端末間共有、localStorageはキャッシュ） ---------- */
   const CHECKED_KEY = 'chemflash_admin_checked';
   let checkedIds = new Set(JSON.parse(localStorage.getItem(CHECKED_KEY) || '[]'));
-  function saveChecked() {
+  function saveCheckedLocal() {
     localStorage.setItem(CHECKED_KEY, JSON.stringify([...checkedIds]));
+  }
+
+  let checkedPushTimer = null;
+  function saveChecked() {
+    saveCheckedLocal();
+    const url = S.dbUrl();
+    if (!url) return;
+    clearTimeout(checkedPushTimer);
+    checkedPushTimer = setTimeout(() => {
+      fetch(url + '/chemflash/admin_checked.json', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([...checkedIds]),
+      }).catch(() => {});
+    }, 800);
+  }
+
+  async function loadCheckedRemote() {
+    const url = S.dbUrl();
+    if (!url) return;
+    try {
+      const res = await fetch(url + '/chemflash/admin_checked.json');
+      if (!res.ok) return;
+      const arr = await res.json();
+      if (Array.isArray(arr)) {
+        checkedIds = new Set(arr);
+        saveCheckedLocal();
+        refreshTable();
+      }
+    } catch (e) { /* オフライン時はローカルのキャッシュのまま */ }
   }
 
   const filter = { text: '', sub: '', type: '', checked: '' };
@@ -282,4 +311,5 @@
   document.querySelectorAll('.publish-btn').forEach(btn => btn.addEventListener('click', doPublish));
 
   refreshAll();
+  loadCheckedRemote();
 })();
