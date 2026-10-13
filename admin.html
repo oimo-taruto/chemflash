@@ -23,6 +23,12 @@
 
   <main>
 
+    <!-- 管理者ログイン（配信・利用状況・フィードバック・チェックの共有は管理者だけ） -->
+    <section class="panel" id="auth-panel">
+      <h2>🔑 管理者ログイン</h2>
+      <div id="auth-box"></div>
+    </section>
+
     <!-- 利用状況 -->
     <section class="panel">
       <h2>👥 利用状況</h2>
@@ -73,7 +79,8 @@
         </div>
         <div>
           <label>unit（単元）</label>
-          <input type="text" name="unit" value="無機化学">
+          <input type="text" name="unit" list="unit-list" placeholder="例: 無機化学">
+          <datalist id="unit-list"></datalist>
         </div>
         <div>
           <label>sub_unit（分野）</label>
@@ -113,6 +120,7 @@
       </div>
       <div class="filter-row">
         <input type="text" id="f-search" placeholder="🔍 問題文・タグで検索" style="flex:2;min-width:180px">
+        <select id="f-unit"><option value="">すべての単元</option></select>
         <select id="f-sub"><option value="">すべての分野</option></select>
         <select id="f-type"><option value="">すべてのタイプ</option></select>
         <select id="f-checked">
@@ -134,7 +142,7 @@
         <button class="btn" id="export-btn">⬇ CSVエクスポート</button>
         <button class="btn danger" id="delete-all-btn">🗑 全問題を削除</button>
       </div>
-      <p class="muted small">「配信する」を押すと現在の問題リストが Firebase に保存され、生徒がアプリを次に開いたときに自動反映されます。</p>
+      <p class="muted small">「配信する」を押すと現在の問題リストが Firebase に保存され、生徒がアプリを次に開いたときに自動反映されます（管理者ログインが必要）。<b>この端末のブラウザにある問題がすべて配られる</b>ので、同じブラウザで生徒用アプリの自作問題を作らないでください。</p>
       <p id="publish-result" class="small"></p>
     </section>
 
@@ -169,6 +177,7 @@
   <script src="js/sync-config.js"></script>
   <script src="js/seed.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/admin-auth.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

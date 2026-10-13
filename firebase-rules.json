@@ -1,0 +1,44 @@
+{
+  "rules": {
+    "chemflash": {
+      ".read": false,
+      ".write": false,
+
+      "official_questions": {
+        ".read": true,
+        ".write": "auth != null && auth.uid === 'ADMIN_UID'"
+      },
+
+      "admin_checked": {
+        ".read": "auth != null && auth.uid === 'ADMIN_UID'",
+        ".write": "auth != null && auth.uid === 'ADMIN_UID'"
+      },
+
+      "feedback": {
+        ".read": "auth != null && auth.uid === 'ADMIN_UID'",
+        "$id": {
+          ".write": "(!data.exists() && newData.exists()) || (auth != null && auth.uid === 'ADMIN_UID')",
+          ".validate": "!newData.exists() || (newData.hasChildren(['text', 'at']) && newData.child('text').isString() && newData.child('text').val().length <= 2000 && newData.child('at').isNumber())"
+        }
+      },
+
+      "pings": {
+        ".read": "auth != null && auth.uid === 'ADMIN_UID'",
+        "$deviceId": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['at']) && newData.child('at').isNumber()"
+        }
+      },
+
+      "connection_test": {
+        ".write": true
+      },
+
+      "$syncId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "!newData.exists() || newData.child('app').val() === 'chemflash'"
+      }
+    }
+  }
+}

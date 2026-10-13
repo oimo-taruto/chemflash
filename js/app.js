@@ -449,7 +449,7 @@
   /* =========================================================
      書庫（採点なし・検索/フィルタ）
      ========================================================= */
-  const libState = { search: '', sub: '', type: '', diff: '', tag: '', status: '' };
+  const libState = { search: '', unit: '', sub: '', type: '', diff: '', tag: '', status: '' };
   let pendingTag = null;
   let scopeOpen = false; // 学習範囲パネルの開閉を再描画後も保つ
 
@@ -504,8 +504,11 @@
     if (pendingTag !== null) { libState.tag = pendingTag; pendingTag = null; }
     if (!S.questions().length) { renderEmpty(); return; }
 
+    const unitOpt = ['<option value="">すべての単元</option>'].concat(
+      S.units().map(u => `<option value="${esc(u)}" ${libState.unit === u ? 'selected' : ''}>${esc(u)}</option>`)).join('');
+    const subChoices = libState.unit ? S.subUnitsOfUnit(libState.unit) : S.subUnits();
     const subOpt = ['<option value="">すべての分野</option>'].concat(
-      S.subUnits().map(s => `<option value="${esc(s)}" ${libState.sub === s ? 'selected' : ''}>${esc(s)}</option>`)).join('');
+      subChoices.map(s => `<option value="${esc(s)}" ${libState.sub === s ? 'selected' : ''}>${esc(s)}</option>`)).join('');
     const typeOpt = ['<option value="">すべてのタイプ</option>'].concat(
       S.TYPES.map(t => `<option ${libState.type === t ? 'selected' : ''}>${esc(t)}</option>`)).join('');
     const diffOpt = ['<option value="">難易度すべて</option>'].concat(
@@ -516,7 +519,8 @@
     const t = libState.search.toLowerCase();
     const list = S.questions().filter(q => {
       const si = S.statusInfo(q.id);
-      return (!libState.sub || q.sub_unit === libState.sub)
+      return (!libState.unit || q.unit === libState.unit)
+        && (!libState.sub || q.sub_unit === libState.sub)
         && (!libState.type || q.question_type === libState.type)
         && (!libState.diff || String(q.difficulty) === libState.diff)
         && (!libState.tag || (' ' + q.tags + ' ').includes(' ' + libState.tag + ' '))
@@ -532,6 +536,7 @@
         ${libState.tag ? `<p class="active-tag">絞り込み中: <span class="chip sub">#${esc(libState.tag)}</span> <button class="btn sm" id="clear-tag">解除</button></p>` : ''}
         <input type="text" id="lib-search" placeholder="🔍 問題文・答え・キーワードで検索" value="${esc(libState.search)}" style="width:100%;margin-bottom:10px">
         <div class="filter-row">
+          <select id="lib-unit">${unitOpt}</select>
           <select id="lib-sub">${subOpt}</select>
           <select id="lib-type">${typeOpt}</select>
           <select id="lib-diff">${diffOpt}</select>
@@ -586,6 +591,11 @@
 
     const si = document.getElementById('lib-search');
     si.addEventListener('input', e => { libState.search = e.target.value; updateLibList(); });
+    document.getElementById('lib-unit').addEventListener('change', e => {
+      libState.unit = e.target.value;
+      if (libState.sub && !S.subUnitsOfUnit(libState.unit).includes(libState.sub)) libState.sub = '';
+      reRender();
+    });
     document.getElementById('lib-sub').addEventListener('change', e => { libState.sub = e.target.value; reRender(); });
     document.getElementById('lib-type').addEventListener('change', e => { libState.type = e.target.value; reRender(); });
     document.getElementById('lib-diff').addEventListener('change', e => { libState.diff = e.target.value; reRender(); });

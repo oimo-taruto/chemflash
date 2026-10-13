@@ -566,6 +566,8 @@ const ChemStore = (() => {
   function pingDevice() {
     const url = dbUrl();
     if (!url) return;
+    // 手元での確認（localhost）は利用人数に数えない
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;
     let id = localStorage.getItem('chemflash_device_id');
     if (!id) {
       id = 'dev-' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
@@ -652,15 +654,17 @@ const ChemStore = (() => {
     persistLocal();
   }
 
-  async function publishOfficialQuestions() {
+  /** 配信は管理者だけ（Firebase のルール）。authed は URL に管理者の ID トークンを付ける関数（admin-auth.js）。 */
+  async function publishOfficialQuestions(authed) {
     const url = dbUrl();
     if (!url) throw new Error('同期サーバが未設定です');
     const toPublish = data.questions.map(q => ({ ...q, origin: 'official' }));
-    const res = await fetch(url + '/chemflash/official_questions.json', {
+    const res = await fetch(await authed(url + '/chemflash/official_questions.json'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(toPublish),
     });
+    if (res.status === 401 || res.status === 403) throw new Error('配信できるのは管理者だけです。管理者のアカウントでログインし直してください');
     if (!res.ok) throw new Error('配信に失敗しました (' + res.status + ')');
     officialList = toPublish.map(q => normalizeQuestion(q));
   }

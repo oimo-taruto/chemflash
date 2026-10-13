@@ -3,7 +3,7 @@
 ## 作業ルール
 
 * **デプロイは push のみ**: `main` に push すると GitHub Pages（`https://oimo-taruto.github.io/chemflash/`）へ即反映。ビルド工程なし。
-* **問題データの配布フロー（新）**: admin.html で追加・編集後、「🚀 アプリに配信する」ボタンを押す → Firebase の `/chemflash/official_questions.json` に保存 → 生徒が次回アプリを開いたとき自動反映。seed.js の直接編集・push は不要。
+* **問題データの配布フロー（新）**: admin.html で**管理者ログイン**（Firebase Authentication・メール/パスワード）したうえで、追加・編集後、「🚀 アプリに配信する」ボタンを押す → Firebase の `/chemflash/official_questions.json` に保存 → 生徒が次回アプリを開いたとき自動反映。seed.js の直接編集・push は不要。
 * **seed.js は初期データ兼フォールバック**: Firebase 未到達時（オフライン等）は seed.js の問題リストを使う。seed.js を更新する場合も push するだけでよいが、Firebase 側が優先される点に注意。
 * **絵文字の扱い**: ヘッダー以外（パネル見出し・グレード判定ボタン 🙅🤔🙆 等）の絵文字は意図的に残している。アイコン化はヘッダーのみ（lucide の生SVGをインライン）。
 
@@ -13,7 +13,7 @@
 
 ## 技術スタック
 
-* **DB**: Firebase Realtime Database（`https://chemflash-e0a01-default-rtdb.asia-southeast1.firebasedatabase.app`）。REST API のみ使用、SDK は読み込まない。ルールは `/chemflash/*` を read/write 公開（認証なし）。
+* **DB**: Firebase Realtime Database（`https://chemflash-e0a01-default-rtdb.asia-southeast1.firebasedatabase.app`）。REST API のみ使用、SDK は読み込まない。ルールは `firebase-rules.json`（2026-10-14〜: 公式問題の配信・利用状況・フィードバックの閲覧・チェック状態は管理者だけ。生徒側＝公式問題の読み込み・同期ID・フィードバック送信・ping はログイン不要のまま）。管理者ログインは `js/admin-auth.js`（Identity Toolkit の REST。ウェブ API キーは `sync-config.js`）。
 * **サーバー**: なし（静的ホスティング）。本番は GitHub Pages、ローカル開発は `serve.ps1`（PowerShell 静的サーバ, port 4173）。
 * **フロントエンド**: 素の HTML/CSS/JS（ビルドステップなし、フレームワークなし）。永続化は localStorage（キー `chemflash_data_v1`）。
 * **その他**: PWA（manifest.json + sw.js、オフライン一部対応）。アイコンは lucide の生SVGをインライン。Supabase は不使用。
@@ -47,7 +47,7 @@ chem-flashcards/
 
 ```
 /chemflash
-  ├── official_questions  # 管理画面から配信した公式問題リスト（配列）。PUT で上書き、GET で全取得
+  ├── official_questions  # 管理画面から配信した公式問題リスト（配列）。PUT で上書き（管理者だけ）、GET で全取得（誰でも）
   ├── admin_checked       # 管理画面のチェック済み問題ID一覧（配列）。端末間で共有（PC⇄iPad等）
   ├── <syncId>            # 同期IDごとの学習データ全量（任意・同期機能を使った端末のみ）
   │     └── { questions, progress, comments, bookmarks, ... }
@@ -88,7 +88,9 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 * [x] 【重大バグ修正】`defaultData()` が旧変数名 `OFFICIAL`（`officialList` に改名済み）を参照しており、新規ブラウザ（localStorage空）で `ReferenceError` により ChemStore 初期化が完全に失敗する不具合を修正。
 * [x] 【重大バグ修正】`load()` 内で Firebase 取得前の古い（seed.jsだけの）リストで公式問題の同期処理を実行し、その不完全な結果を即座に localStorage へ保存してしまう不具合を修正。通信失敗が重なるたびに問題が少しずつ失われる原因になっていた（PC側で713→665問に減少した根本原因）。同期は `fetchRemoteOfficial()` 内で一度だけ、取得成否に応じた確定リストで実行するよう変更。admin.js/app.js は `S.ready` 解決後に再描画するよう追加。
 
-**直近の作業**: 公式問題データ消失バグの調査・修正（PC側で713問→665問に減っていた事象）。Firebase上の`official_questions`は720件（713+編集/追加分）で無事だったため、コード側のバグ修正のみでPCも次回開いたときに正しい件数に復元される。
+**2026-10-14**: 事業（Route）で使う方針に。①誰でも無料で配る（集客の入口）②Route の生徒には宿題・質問でつなげる（新しい仕組みは作らない）。名前・見た目・URL は変えない（今使っている生徒がいるため）。問題は880問・ハルトがチェック済み。データベースに鍵（管理者だけ配信できる）・書庫と管理画面に単元の絞り込み・localhost では利用人数に数えない。
+
+**以前の作業**: 公式問題データ消失バグの調査・修正（PC側で713問→665問に減っていた事象）。Firebase上の`official_questions`は720件（713+編集/追加分）で無事だったため、コード側のバグ修正のみでPCも次回開いたときに正しい件数に復元される。
 
 **次のTODO**: PC・iPad双方でadmin.htmlを開き直し、720問に復元されたか確認。復元後、内容が意図した状態か（720件が正しいか、削除したかった問題が残っていないか）を目視確認。
 
@@ -100,7 +102,7 @@ localStorage 側の構造（`chemflash_data_v1`）は `store.js` の `defaultDat
 
 ## 禁止事項
 
-* **Firebase ルールを安易に締めない**: 認証なし read/write 公開は学校内利用の前提での許容。変更時は同期・ping・フィードバックの全機能への影響を確認。
+* **Firebase ルールを変えるときは、生徒側の全機能（公式問題の読み込み・同期・ping・フィードバック・自作問題）を確かめる**: 2026-10-14 に「誰でも無料で配る（集客の入口）・Route の生徒には先生がつなげる」と決めたので、管理者の操作だけ鍵をかけた（`firebase-rules.json`）。生徒はログイン不要のまま。ルールの正本はこのファイルで、Firebase コンソールに貼ったものと同じにしておく。
 * **ビルドツール/フレームワーク/npm 依存を導入しない**: 「ビルド不要・静的配信」が本プロジェクトの設計思想。lucide も SDK ではなく生SVGをインラインで使う。
 * **生徒の進捗を壊す変更を不用意にしない**: 問題文の変更はID変化＝進捗リセットを伴う。修正前に影響範囲（その1問だけか）を明示して確認を取る。
 * **管理画面へのリンクをアプリ側に置かない**（admin.html は作者専用の作問デスク）。

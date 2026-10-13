@@ -22,13 +22,59 @@
     toastTimer = setTimeout(() => { el.className = ''; }, 2200);
   }
 
+  const NEED_LOGIN = '<p class="muted small">上の「管理者ログイン」でログインすると見られます</p>';
+
+  /* ---------- 管理者ログイン（admin-auth.js・配信と、下の利用状況・フィードバック・チェックは管理者だけ） ---------- */
+  function renderAuth() {
+    const box = document.getElementById('auth-box');
+    if (AdminAuth.isSignedIn()) {
+      box.innerHTML = `<p class="small" style="margin:0">ログイン中: <b>${esc(AdminAuth.email())}</b></p>
+        <div class="btn-row"><button class="btn sm" id="auth-out">ログアウト</button></div>`;
+      document.getElementById('auth-out').addEventListener('click', () => {
+        if (!confirm('ログアウトしますか？（配信・利用状況・フィードバックが使えなくなります）')) return;
+        AdminAuth.signOut();
+        renderAuth();
+        reloadAdminData();
+      });
+    } else {
+      box.innerHTML = `<form id="auth-form" class="form-grid">
+          <div><label>メールアドレス</label><input type="email" name="email" autocomplete="username" required></div>
+          <div><label>パスワード</label><input type="password" name="password" autocomplete="current-password" required></div>
+          <div class="full btn-row"><button class="btn primary" type="submit">ログイン</button></div>
+        </form>
+        <p class="muted small" style="margin:0">Firebase の Authentication で作った管理者のアカウントです。この端末では次からログイン不要です。</p>`;
+      document.getElementById('auth-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+          await AdminAuth.signIn(String(f.get('email')).trim(), String(f.get('password')));
+          toast('ログインしました', 'good');
+          renderAuth();
+          reloadAdminData();
+        } catch (err) {
+          toast(err.message, 'bad');
+          btn.disabled = false;
+        }
+      });
+    }
+  }
+
+  function reloadAdminData() {
+    loadUserStats();
+    loadFeedback();
+    loadCheckedRemote();
+  }
+
   /* ---------- 利用状況 ---------- */
   async function loadUserStats() {
     const wrap = document.getElementById('user-stats');
     const url = S.dbUrl();
     if (!url) { wrap.innerHTML = '<p class="muted small">同期サーバが未設定です</p>'; return; }
+    if (!AdminAuth.isSignedIn()) { wrap.innerHTML = NEED_LOGIN; return; }
     try {
-      const res = await fetch(url + '/chemflash/pings.json?shallow=true');
+      const res = await fetch(await AdminAuth.authed(url + '/chemflash/pings.json?shallow=true'));
       if (!res.ok) throw new Error('読み込みに失敗 (' + res.status + ')');
       const data = (await res.json()) || {};
       const count = Object.keys(data).length;
@@ -39,16 +85,16 @@
     }
   }
   document.getElementById('stats-refresh').addEventListener('click', loadUserStats);
-  loadUserStats();
 
   /* ---------- フィードバック ---------- */
   async function loadFeedback() {
     const wrap = document.getElementById('feedback-list');
     const url = S.dbUrl();
     if (!url) { wrap.innerHTML = '<p class="muted small">送信先（同期サーバ）が未設定です</p>'; return; }
+    if (!AdminAuth.isSignedIn()) { wrap.innerHTML = NEED_LOGIN; return; }
     wrap.innerHTML = '<p class="muted small">読み込み中…</p>';
     try {
-      const res = await fetch(url + '/chemflash/feedback.json');
+      const res = await fetch(await AdminAuth.authed(url + '/chemflash/feedback.json'));
       if (!res.ok) throw new Error('読み込みに失敗しました (' + res.status + ')');
       const list = (await res.json()) || {};
       const items = Object.entries(list).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
@@ -63,7 +109,12 @@
         btn.addEventListener('click', async () => {
           if (!confirm('このフィードバックを削除しますか？')) return;
           const id = btn.closest('.fb-item').dataset.id;
-          await fetch(url + '/chemflash/feedback/' + encodeURIComponent(id) + '.json', { method: 'DELETE' });
+          try {
+            const res = await fetch(await AdminAuth.authed(url + '/chemflash/feedback/' + encodeURIComponent(id) + '.json'), { method: 'DELETE' });
+            if (!res.ok) throw new Error('削除に失敗しました (' + res.status + ')');
+          } catch (err) {
+            toast(err.message, 'bad');
+          }
           loadFeedback();
         });
       });
@@ -72,7 +123,6 @@
     }
   }
   document.getElementById('fb-refresh').addEventListener('click', loadFeedback);
-  loadFeedback();
 
   /* ---------- CSV インポート ---------- */
   function runImport(text) {
@@ -115,7 +165,6 @@
       S.persist();
       toast('問題を追加しました ✔', 'good');
       e.target.reset();
-      e.target.querySelector('[name="unit"]').value = S.DEFAULT_UNIT;
       refreshAll();
     } else if (res === 'skipped') {
       toast('同じ問題文がすでに登録されています', 'bad');
@@ -136,21 +185,23 @@
   function saveChecked() {
     saveCheckedLocal();
     const url = S.dbUrl();
-    if (!url) return;
+    if (!url || !AdminAuth.isSignedIn()) return; // ログインしていなければこの端末の中だけに残る
     clearTimeout(checkedPushTimer);
-    checkedPushTimer = setTimeout(() => {
-      fetch(url + '/chemflash/admin_checked.json', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([...checkedIds]),
-      }).catch(() => {});
+    checkedPushTimer = setTimeout(async () => {
+      try {
+        await fetch(await AdminAuth.authed(url + '/chemflash/admin_checked.json'), {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([...checkedIds]),
+        });
+      } catch (e) { /* オフライン時はローカルのキャッシュのまま */ }
     }, 800);
   }
 
   async function loadCheckedRemote() {
     const url = S.dbUrl();
-    if (!url) return;
+    if (!url || !AdminAuth.isSignedIn()) return;
     try {
-      const res = await fetch(url + '/chemflash/admin_checked.json');
+      const res = await fetch(await AdminAuth.authed(url + '/chemflash/admin_checked.json'));
       if (!res.ok) return;
       const arr = await res.json();
       if (Array.isArray(arr)) {
@@ -161,13 +212,18 @@
     } catch (e) { /* オフライン時はローカルのキャッシュのまま */ }
   }
 
-  const filter = { text: '', sub: '', type: '', checked: '' };
+  const filter = { text: '', unit: '', sub: '', type: '', checked: '' };
 
   function refreshFilters() {
+    const unitSel = document.getElementById('f-unit');
+    unitSel.innerHTML = '<option value="">すべての単元</option>' +
+      S.units().map(u => `<option value="${esc(u)}" ${u === filter.unit ? 'selected' : ''}>${esc(u)}</option>`).join('');
+
     const subSel = document.getElementById('f-sub');
     const keep = filter.sub;
+    const subChoices = filter.unit ? S.subUnitsOfUnit(filter.unit) : S.subUnits();
     subSel.innerHTML = '<option value="">すべての分野</option>' +
-      S.subUnits().map(s => `<option value="${esc(s)}" ${s === keep ? 'selected' : ''}>${esc(s)}</option>`).join('');
+      subChoices.map(s => `<option value="${esc(s)}" ${s === keep ? 'selected' : ''}>${esc(s)}</option>`).join('');
 
     const typeSel = document.getElementById('f-type');
     typeSel.innerHTML = '<option value="">すべてのタイプ</option>' +
@@ -175,11 +231,15 @@
 
     document.getElementById('sub-list').innerHTML =
       S.subUnits().map(s => `<option value="${esc(s)}">`).join('');
+
+    document.getElementById('unit-list').innerHTML =
+      S.units().map(u => `<option value="${esc(u)}">`).join('');
   }
 
   function visibleQuestions() {
     const t = filter.text.toLowerCase();
     return S.questions().filter(q =>
+      (!filter.unit || q.unit === filter.unit) &&
       (!filter.sub || q.sub_unit === filter.sub) &&
       (!filter.type || q.question_type === filter.type) &&
       (!filter.checked || (filter.checked === 'checked') === checkedIds.has(q.id)) &&
@@ -218,6 +278,12 @@
 
   document.getElementById('f-search').addEventListener('input', e => {
     filter.text = e.target.value; refreshTable();
+  });
+  document.getElementById('f-unit').addEventListener('change', e => {
+    filter.unit = e.target.value;
+    if (filter.sub && !S.subUnitsOfUnit(filter.unit).includes(filter.sub)) filter.sub = '';
+    refreshFilters();
+    refreshTable();
   });
   document.getElementById('f-sub').addEventListener('change', e => {
     filter.sub = e.target.value; refreshTable();
@@ -293,11 +359,16 @@
 
   async function doPublish() {
     const result = document.getElementById('publish-result');
+    if (!AdminAuth.isSignedIn()) {
+      toast('配信するには、上の「管理者ログイン」でログインしてください', 'bad');
+      document.getElementById('auth-panel').scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     if (!confirm(`現在の ${S.questions().length} 問をアプリに配信します。生徒が次にアプリを開いたときに反映されます。よろしいですか？`)) return;
     document.querySelectorAll('.publish-btn').forEach(b => { b.disabled = true; b.textContent = '配信中…'; });
     result.textContent = '';
     try {
-      await S.publishOfficialQuestions();
+      await S.publishOfficialQuestions(AdminAuth.authed);
       const n = S.questions().length;
       result.innerHTML = `✅ ${n} 問を配信しました。生徒がアプリを開き直すと反映されます。`;
       toast(`${n} 問を配信しました`, 'good');
@@ -310,7 +381,8 @@
   }
   document.querySelectorAll('.publish-btn').forEach(btn => btn.addEventListener('click', doPublish));
 
+  renderAuth();
   refreshAll();
-  loadCheckedRemote();
+  reloadAdminData();
   S.ready.then(refreshAll); // Firebase から公式問題の最新リストを取得できたら表示を更新
 })();
