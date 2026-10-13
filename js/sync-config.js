@@ -25,4 +25,4 @@ window.CHEMFLASH_SYNC_URL = 'https://chemflash-e0a01-default-rtdb.asia-southeast
 /* 管理画面（admin.html）のログインに使う Firebase の「ウェブ API キー」
    （Firebase コンソール → プロジェクトの設定 → 全般）。ページに埋め込む前提の公開用の値で、秘密ではない。
    管理者だけが書き込めるかどうかは、データベースのルール（firebase-rules.json）で決まる。 */
-window.CHEMFLASH_API_KEY = '';
+window.CHEMFLASH_API_KEY = 'AIzaSyBkLit_vSCosG8pRWtyQteG9H-Q8GTa1A4';

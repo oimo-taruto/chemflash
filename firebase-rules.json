@@ -6,24 +6,24 @@
 
       "official_questions": {
         ".read": true,
-        ".write": "auth != null && auth.uid === 'ADMIN_UID'"
+        ".write": "auth != null && auth.uid === 'pcX2JEaNJkcr7lT7x2q8bg51v312'"
       },
 
       "admin_checked": {
-        ".read": "auth != null && auth.uid === 'ADMIN_UID'",
-        ".write": "auth != null && auth.uid === 'ADMIN_UID'"
+        ".read": "auth != null && auth.uid === 'pcX2JEaNJkcr7lT7x2q8bg51v312'",
+        ".write": "auth != null && auth.uid === 'pcX2JEaNJkcr7lT7x2q8bg51v312'"
       },
 
       "feedback": {
-        ".read": "auth != null && auth.uid === 'ADMIN_UID'",
+        ".read": "auth != null && auth.uid === 'pcX2JEaNJkcr7lT7x2q8bg51v312'",
         "$id": {
-          ".write": "(!data.exists() && newData.exists()) || (auth != null && auth.uid === 'ADMIN_UID')",
+          ".write": "(!data.exists() && newData.exists()) || (auth != null && auth.uid === 'pcX2JEaNJkcr7lT7x2q8bg51v312')",
           ".validate": "!newData.exists() || (newData.hasChildren(['text', 'at']) && newData.child('text').isString() && newData.child('text').val().length <= 2000 && newData.child('at').isNumber())"
         }
       },
 
       "pings": {
-        ".read": "auth != null && auth.uid === 'ADMIN_UID'",
+        ".read": "auth != null && auth.uid === 'pcX2JEaNJkcr7lT7x2q8bg51v312'",
         "$deviceId": {
           ".write": true,
           ".validate": "newData.hasChildren(['at']) && newData.child('at').isNumber()"
