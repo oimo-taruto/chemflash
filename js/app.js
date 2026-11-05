@@ -1121,7 +1121,7 @@
     if (go) { switchTab(go.dataset.go); return; }
     const act = e.target.closest('[data-act]');
     if (!act) return;
-    if (act.dataset.act === 'help') helpDialog.showModal();
+    if (act.dataset.act === 'help') openHelp();
     else if (act.dataset.act === 'route-hide') {
       e.preventDefault();
       ui.routeHideUntil = Date.now() + 7 * 86400000; // 7日間は出さない
@@ -1131,8 +1131,102 @@
     }
   });
 
-  /* ---------- 使い方ダイアログ ---------- */
+  /* ---------- 使い方ダイアログ（図で見せる。中身は見本の数字で、学習データは読むだけ） ---------- */
   const helpDialog = document.getElementById('help-dialog');
+  const helpBody = document.getElementById('help-body');
+
+  function helpSec(id, icon, color, title, fig, note = '') {
+    return `<section class="hsec" id="h-${id}" style="--c:${color}"><h3><span class="ib">${I(icon)}</span>${title}</h3>
+      <div class="hfig" inert>${fig}</div>${note}</section>`;
+  }
+  function buildHelp() {
+    const demoAtoms = UNIT_ORDER.map((u, i) => { const m = unitMeta(u); return { unit: 'demo' + i, unitAttr: '', label: '', sym: m.sym, color: m.color, p: [.62, .38, .8, .24, .5][i] }; });
+    const co = n => `<i class="co">${n}</i>`;
+    const li = levelInfo();
+
+    // ① ホーム（見本の画面に番号）
+    const home = `<div class="shot"><div class="shot-in">
+        <div class="level">${co(1)}<div class="lvbadge">${I('flask')}</div><div class="info"><div class="line1"><span class="lvl">Lv.3</span><span class="ltitle">見習い化学者</span><span class="exp-n">120 / 150 EXP</span></div><div class="exp"><span style="width:60%"></span></div></div></div>
+        <div class="body">
+          <div class="quest">${co(2)}<div class="fl">${LAB.flask({ layers: [['#45e3cf', .55]], glow: '#45e3cf', bubbles: true })}</div><div class="qtx"><div class="tagq">DAILY QUEST</div><span class="label">今日の復習</span><div class="num">12<small>問</small></div></div><span class="play">${I('play')}</span></div>
+          <div class="card mol">${co(3)}<div class="head"><span class="label">単元</span><span class="r"><b>36</b>/ 880 定着</span></div>${LAB.molecule(demoAtoms, null)}</div>
+          <div class="quick">${co(4)}<button class="u1"><span class="ib">${I('tube')}</span>演習</button><button class="u4"><span class="ib">${I('target')}</span>苦手だけ</button><button class="u2"><span class="ib">${I('timer')}</span>15分</button><button class="u5"><span class="ib">${I('star')}</span>保存</button></div>
+        </div></div></div>
+      <ol class="coleg"><li><b>1</b>レベルと EXP</li><li><b>2</b>押すだけで、いまやる問題から</li><li><b>3</b>単元ごとの理解度</li><li><b>4</b>範囲を選ぶ・苦手だけ・15分・保存</li></ol>`;
+
+    // ② 解き方（3つのビーカー）
+    const solve = `<div class="hflow"><span class="st">${I('play', 's14')}始める</span>${I('chev', 's14')}<span class="st">答えを見る</span>${I('chev', 's14')}<span class="st on">ビーカーを選ぶ</span></div>
+      <div class="beakers">${LAB.beaker('ng', I('x'), 'わからない')}${LAB.beaker('vague', I('tri'), 'あいまい')}${LAB.beaker('ok', I('o'), '完璧')}</div>
+      <div class="bcap"><span>間違い復習へ<br>（最初から）</span><span>間違い復習へ</span><span>次の復習は<br>もっと先に</span></div>`;
+
+    // ③ 試験管 → フラスコ
+    const flaskFig = `<div class="htube">${LAB.tube([['ok', 9], ['vague', 3], ['ng', 2]], 20)}<span>14/20</span></div>
+      <p class="cap">答えるたびに、試験管に色がたまる</p>
+      <div class="harrow">${I('chevd', 's18')}</div>
+      <div class="hres"><div class="fk">${LAB.flask({ layers: [['#fb923c', 2 / 14 * .9], ['#fbbf24', 3 / 14 * .9], ['#34d399', 9 / 14 * .9]], glow: '#34d399', bubbles: true, spark: true })}</div>
+        <div class="tx"><p>終わると、結果が<b>フラスコ</b>に</p><div class="legend3"><span style="color:var(--green)">${I('o')}9</span><span style="color:var(--yellow)">${I('tri')}3</span><span style="color:var(--orange)">${I('x')}2</span></div><p class="sm">緑が多いほど よくできた回</p></div></div>`;
+
+    // ④ EXP とレベル
+    const steps = TITLES.map(([lv, name], i) => {
+      const here = li.lv >= lv && (!TITLES[i + 1] || li.lv < TITLES[i + 1][0]);
+      return `<div class="sp${here ? ' here' : ''}" style="--h:${22 + i * 11}px">${here ? '<em>いまここ</em>' : ''}<span class="bar"></span><b>Lv.${lv}</b><span class="nm">${({ '見習い化学者': '見習い<br>化学者', '主任研究員': '主任<br>研究員', '化学の賢者': '化学の<br>賢者' })[name] || name}</span><span class="q">${expAt(lv).toLocaleString()}</span></div>`;
+    }).join('');
+    const expFig = `<div class="hexp"><span class="g k-ok">${I('o')}</span><span class="g k-vague">${I('tri')}</span><span class="g k-ng">${I('x')}</span><span class="eq">=</span><span class="plus">+1<small>EXP</small></span></div>
+      <p class="cap">どれを選んでも 1問 = 1 EXP。解いた数だけ上がる</p>
+      <div class="stairs">${steps}</div>
+      <p class="cap sm">下の数字 = そのレベルまでに解く数（くり返しも数える）</p>`;
+
+    // ⑤ 原子 = 単元
+    const mol = `<div class="hmol">${LAB.molecule(demoAtoms, null)}</div>
+      <div class="ukey">${UNIT_ORDER.map(u => { const m = unitMeta(u); return `<span style="--c:${m.color}"><b>${m.sym}</b>${u === '高分子化合物' ? '高分子' : u}</span>`; }).join('')}</div>
+      <div class="hpts"><div><span class="ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="#222d4a" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#34d399" stroke-width="4" stroke-linecap="round" stroke-dasharray="88" stroke-dashoffset="35" transform="rotate(-90 18 18)"/></svg></span><p><b>輪の長さ</b>＝いま「完璧」の問題の割合</p></div>
+        <div><span class="ring">${I('chart')}</span><p><b>原子を押す</b>と、その単元の分野別の理解度へ</p></div></div>`;
+
+    // ⑥ 復習のしくみ
+    const node = (fill, label, sub) => `<div class="nd"><div class="v">${fill == null ? `<span class="cap-ic">${I('cap')}</span>` : LAB.vial([['#45e3cf', fill]], '#45e3cf')}</div><b>${label}</b><span>${sub}</span></div>`;
+    const review = `<div class="tl">${node(.33, '今日', '完璧')}<i class="ar"><small>7日</small>${I('chev', 's14')}</i>${node(.66, '7日後', '完璧')}<i class="ar"><small>30日</small>${I('chev', 's14')}</i>${node(1, '30日後', '完璧')}<i class="ar">${I('chev', 's14')}</i>${node(null, '定着', '卒業')}</div>
+      <div class="tlbad">${I('undo', 's16')}<span><b class="o">×</b> や <b class="y">△</b> を付けると、7日後にまた出る（× は最初から）</span></div>
+      <div class="two"><div><span class="t">${I('rotate', 's16')}今日の復習</span><p>期限が来た問題だけ（1度に20問まで）</p></div><div><span class="t o">${I('target', 's16')}間違い復習</span><p>×・△の問題を、完璧になるまで</p></div></div>`;
+
+    // ⑦ 下のタブ
+    const tabs = [['house', 'ホーム', 'すぐ始める'], ['rotate', '復習', '今日の分'], ['book', '書庫', '全問を見る'], ['chart', '分析', '苦手を探す'], ['user', 'マイ', '保存・同期']];
+    const tabFig = `<div class="htabs">${tabs.map(([ic, n, d]) => `<div><span class="ic2">${I(ic)}</span><b>${n}</b><span>${d}</span></div>`).join('')}</div>`;
+
+    // ⑧ 便利な機能
+    const tips = [['star', 'var(--pink)', '保存', 'あとで見返す問題に'], ['pencil', 'var(--green)', 'メモ', '覚え方などを一言'], ['eyeoff', 'var(--violet)', 'まだ習ってない', '出題から外す（書庫で戻せる）'], ['phone', 'var(--cyan)', 'ホーム画面に追加', 'ブラウザのメニューから。アプリのように開ける']];
+    const tipFig = `<div class="htips">${tips.map(([ic, c, n, d]) => `<div style="--c:${c}"><span class="ib">${I(ic)}</span><b>${n}</b><span>${d}</span></div>`).join('')}</div>`;
+
+    // ⑨ Route とは
+    const route = `<section class="hsec" id="h-route"><h3><span class="ib rmk2">R</span>Route とは？<span class="prtag">PR</span></h3>
+      <div class="rad radM hroute"><a class="cover" href="${ROUTE_URL}" target="_blank" rel="noopener">
+        <div class="hd">${routeLogo}</div>
+        <div class="catch">理系の<em>オンライン個別指導</em>です</div>
+        <div class="feats"><span>${I('video')}1対1の授業</span><span>${I('cam')}質問・添削</span><span>${I('gift')}無料体験2回</span></div>
+        <div class="rsteps"><div><b>1</b>解けない問題を写真で送る</div><div><b>2</b>先生が添削して返す（48時間以内）</div></div>
+        <div class="ft"><span class="go">サイトを見る${I('ext')}</span><span class="url">高校生・浪人生<br>数学・物理・化学</span></div></a></div>
+      <p class="rnote">${I('check', 's14')}ChemFlash はこのまま無料で使えます。Route は気になった人だけどうぞ（ホームの広告は × で7日間かくせます）。</p></section>`;
+
+    const toc = [['home', 'ホーム'], ['solve', '解き方'], ['flask', 'フラスコ'], ['exp', 'EXP'], ['mol', '単元'], ['review', '復習'], ['tabs', 'タブ'], ['route', 'Route']];
+    helpBody.innerHTML = `<nav class="htoc">${toc.map(([id, n]) => `<button data-h="${id}">${n}</button>`).join('')}</nav>
+      ${helpSec('home', 'house', 'var(--cyan)', 'ホームの見かた', home)}
+      ${helpSec('solve', 'tube', 'var(--green)', '問題の解き方', solve)}
+      ${helpSec('flask', 'flask', 'var(--teal)', '試験管とフラスコ', flaskFig)}
+      ${helpSec('exp', 'star', 'var(--gold)', 'EXP とレベル', expFig, `<p class="hnote">いま <b>Lv.${li.lv} ${esc(li.title)}</b>（${li.exp} EXP）${li.nextTitle ? `。次の称号は「${esc(li.nextTitle)}」` : ''}</p>`)}
+      ${helpSec('mol', 'layers', 'var(--violet)', '原子 = 単元', mol)}
+      ${helpSec('review', 'rotate', 'var(--teal)', '復習のしくみ（忘却曲線）', review)}
+      ${helpSec('tabs', 'house', 'var(--cyan)', '下のタブ', tabFig)}
+      ${helpSec('tips', 'star', 'var(--pink)', '便利な機能', tipFig)}
+      ${route}`;
+    helpBody.querySelectorAll('[data-h]').forEach(b => b.addEventListener('click', () => {
+      const t = helpBody.querySelector('#h-' + b.dataset.h);
+      if (t) helpDialog.scrollTo({ top: t.offsetTop - helpBody.querySelector('.htoc').offsetHeight - 64, behavior: 'smooth' });
+    }));
+  }
+  function openHelp() {
+    buildHelp(); // 開くたびに作り直す（「いまここ」を最新に）
+    helpDialog.showModal();
+    helpDialog.scrollTop = 0;
+  }
   document.getElementById('help-close').addEventListener('click', () => helpDialog.close());
   helpDialog.addEventListener('click', e => { if (e.target === helpDialog) helpDialog.close(); });
   document.getElementById('help-feedback').addEventListener('click', () => {

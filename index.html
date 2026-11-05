@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/app.css?v=2026110502">
+  <link rel="stylesheet" href="css/app.css?v=2026110503">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -81,46 +81,7 @@
       <h2><svg class="ic"><use href="#i-flask"/></svg>使い方</h2>
       <button class="iconbtn" id="help-close" aria-label="閉じる"><svg class="ic s18"><use href="#i-x"/></svg></button>
     </div>
-    <details class="help-item u3">
-      <summary><span class="ib"><svg class="ic"><use href="#i-house"/></svg></span>ホーム<svg class="ic chev s16"><use href="#i-chev"/></svg></summary>
-      <ul>
-        <li>大きな ▶ を押すと、いまやるべき問題（今日の復習・間違い復習）から始まります。</li>
-        <li>「演習」で、出題数・範囲（単元・分野・キーワード・難易度）・並べ方・出す問題を選べます。</li>
-        <li>5つの原子は単元です。まわりの輪が「完璧」になった問題の割合。押すと分析が開きます。</li>
-      </ul>
-    </details>
-    <details class="help-item u1">
-      <summary><span class="ib"><svg class="ic"><use href="#i-tube"/></svg></span>問題を解く<svg class="ic chev s16"><use href="#i-chev"/></svg></summary>
-      <ul>
-        <li>答えを見たら、わからない（×）・あいまい（△）・完璧（○）の3つのビーカーから選びます。</li>
-        <li>上の試験管に、答えた結果の色がたまっていきます。左上の × でいつでも終われます。</li>
-        <li>授業でまだ習っていない問題は「まだ習ってない」で出題・分析から外せます（書庫からいつでも戻せます）。</li>
-      </ul>
-    </details>
-    <details class="help-item u2">
-      <summary><span class="ib"><svg class="ic"><use href="#i-rotate"/></svg></span>復習<svg class="ic chev s16"><use href="#i-chev"/></svg></summary>
-      <ul>
-        <li>今日の復習：そろそろ忘れそうな頃の問題が自動で出ます。完璧にするたびに間隔がのび、2回こなすと定着です。</li>
-        <li>間違い復習：わからない・あいまいだった問題を、完璧になるまでくり返します。</li>
-      </ul>
-    </details>
-    <details class="help-item u4">
-      <summary><span class="ib"><svg class="ic"><use href="#i-book"/></svg></span>書庫・分析<svg class="ic chev s16"><use href="#i-chev"/></svg></summary>
-      <ul>
-        <li>書庫は採点なしで全問題を見られる一覧です。検索や単元・分野・状態でしぼりこめます。</li>
-        <li>「学習範囲」で、まだ習っていない単元・分野をまとめて外せます。</li>
-        <li>分析では、いま優先したい分野と、単元ごとの分野別の理解度が見られます。</li>
-      </ul>
-    </details>
-    <details class="help-item u5">
-      <summary><span class="ib"><svg class="ic"><use href="#i-user"/></svg></span>マイ（保存・自作・同期）<svg class="ic chev s16"><use href="#i-chev"/></svg></summary>
-      <ul>
-        <li>問題の ☆ を押すと「保存した問題」にストックされます。</li>
-        <li>自作問題を追加すると、演習・復習にも普通に混ざって出ます（他の人には共有されません）。</li>
-        <li>同期IDを発行すると、別の端末でも続きから学習できます。ファイルでの引っ越しもできます。</li>
-        <li>スマホのブラウザのメニューから「ホーム画面に追加」すると、アプリのように使えます。</li>
-      </ul>
-    </details>
+    <div id="help-body"></div>
     <div class="help-foot">
       <button class="btn second sm" id="help-feedback"><svg class="ic"><use href="#i-msg"/></svg>フィードバックを送る</button>
     </div>
@@ -129,7 +90,7 @@
   <script src="js/sync-config.js"></script>
   <script src="js/seed.js"></script>
   <script src="js/store.js"></script>
-  <script src="js/lab.js?v=2026110502"></script>
-  <script src="js/app.js?v=2026110502"></script>
+  <script src="js/lab.js?v=2026110503"></script>
+  <script src="js/app.js?v=2026110503"></script>
 </body>
 </html>
