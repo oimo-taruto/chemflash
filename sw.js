@@ -1,7 +1,7 @@
 /* ChemFlash Service Worker — オフライン対応
    ネットワーク優先（online時は常に最新、offline時はキャッシュから）。
    頻繁に問題やコードを更新するアプリなので、stale なキャッシュを避ける。 */
-const CACHE = 'chemflash-v3';
+const CACHE = 'chemflash-v4';
 
 self.addEventListener('install', () => self.skipWaiting());
 
