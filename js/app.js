@@ -211,7 +211,7 @@
   }
 
   /* ---------- 共通パーツ ---------- */
-  const brandbar = () => `<header class="topbar"><div class="brand"><span class="bflask">${I('flask')}</span><span class="name">ChemFlash</span><span class="tag">高校化学 暗記ラボ</span></div><button class="iconbtn" data-act="help" aria-label="使い方">${I('help')}</button></header>`;
+  const brandbar = () => `<header class="topbar brandbar"><div class="brand"><span class="bflask">${I('flask')}</span><span class="name">ChemFlash</span><span class="tag">高校化学 暗記ラボ</span></div><button class="iconbtn" data-act="help" aria-label="使い方">${I('help')}</button></header>`;
   function levelBar() {
     const li = levelInfo();
     return `<div class="level"><div class="lvbadge">${I('flask')}</div><div class="info"><div class="line1"><span class="lvl">Lv.${li.lv}</span><span class="ltitle">${esc(li.title)}</span><span class="exp-n">${li.exp} / ${li.next} EXP</span></div><div class="exp"><span style="width:${Math.round(li.ratio * 100)}%"></span></div></div></div>`;

@@ -41,6 +41,8 @@ body.insession #view { padding-bottom: 0; }
 
 /* ---------- 上の帯 ---------- */
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: calc(10px + var(--safe-t)) 20px 8px; min-height: 58px; }
+/* ホームの「ChemFlash」の帯は、スクロールしても常に上に出しておく */
+.topbar.brandbar { position: sticky; top: 0; z-index: 30; background: rgba(11,18,34,.88); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 1px 0 rgba(255,255,255,.06); }
 .brand { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; min-width: 0; }
 .brand .bflask { color: var(--cyan); align-self: center; display: inline-flex; }
 .brand .bflask svg { width: 24px; height: 24px; stroke-width: 2.2; }
