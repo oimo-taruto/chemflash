@@ -262,7 +262,7 @@
       <div class="labbody"><article class="glass spec qv" style="--c:${m.color}" data-qid="${esc(q.id)}">
         ${fhead(q)}
         <div class="stage">${LAB.flask({ layers: [[m.color, .5]], glow: m.color, bubbles: true })}</div>
-        <div class="fq"><span class="qno">Q.${String(opts.qno).padStart(2, '0')}</span><div class="qtext">${esc(q.question)}</div>${memoView(q)}</div>
+        <div class="fq">${opts.related ? `<div class="relchip">${I('link', 's14')}さっきの問題の関連<b>#${esc(opts.related)}</b></div>` : ''}<span class="qno">Q.${String(opts.qno).padStart(2, '0')}</span><div class="qtext">${esc(q.question)}</div>${memoView(q)}</div>
         ${memoEdit(q)}
         <div class="icrow"><button data-act="memo">${I('pencil')}メモ</button>${opts.showUnlearned ? `<button data-act="unlearned" title="まだ授業で習っていない問題（出題・分析から外す）">${I('eyeoff')}まだ習ってない</button>` : ''}</div>
       </article></div>
@@ -653,6 +653,7 @@
       return false;
     }
     undoSnap = null;
+    resetRelated();
     if (config.target !== 'auto') { lastConfig = config; ui.lastConfig = config; saveUi(); }
     S.raw().session = {
       config, order, pos: 0, stopped: false,
@@ -681,12 +682,22 @@
       top: tubeBar(s.counts, s.endsAt ? Math.max(s.pos + 10, 20) : total, right, 'ストップ'),
       qno: s.pos + 1,
       showUnlearned: true,
+      related: relNote.get(q.id),
       onGrade: grade => {
         const snap = snapAnswer(q.id, 'home');
         S.recordAnswer(q.id, grade);
         bumpLog(1);
         s.counts[grade]++;
         s.pos++;
+        if (grade === 'ng') {
+          const r = pickRelated(q);
+          if (r) { // 次の1問に差し込む（あとで出る予定だったら前に移すだけ）
+            const at = s.order.indexOf(r.id, s.pos);
+            if (at >= 0) s.order.splice(at, 1);
+            s.order.splice(s.pos, 0, r.id);
+            noteRelated(r);
+          }
+        }
         S.persistLocal();
         updateBadges();
         offerUndo(snap, grade);
@@ -754,6 +765,38 @@
       : shuffle(S.reviewWrongIds(reviewState.sub, reviewState.type));
   }
 
+  /* ---------- ×のあとに関連問題を1問（AI StLike の「つまずきフォロー」の考え方） ----------
+     習っている範囲（未習にしていない問題）だけから、キーワードが近い問題を選ぶ。
+     「色」「製法」のようにたくさんの問題に付いているキーワードは軽く、珍しいキーワードほど重く数える。
+     関連問題からさらに関連問題は出さない。1回の演習・復習で5問まで。 */
+  const relNote = new Map(); // 関連問題として差し込んだid → 共通のキーワード（画面の印用。保存しない）
+  let relCount = 0;
+  const REL_MAX = 5, REL_MIN_SCORE = 3, TAG_COMMON = 25;
+  let tagFreq = null;
+  function resetRelated() { relNote.clear(); relCount = 0; }
+  function noteRelated(r) { relNote.set(r.id, r.tag); relCount++; }
+  function pickRelated(q) {
+    if (relNote.has(q.id) || relCount >= REL_MAX) return null;
+    const tags = S.tagsOf(q.id);
+    if (!tags.length) return null;
+    const qs = S.questions();
+    if (!tagFreq) { tagFreq = {}; for (const x of qs) for (const t of S.tagsOf(x.id)) tagFreq[t] = (tagFreq[t] || 0) + 1; }
+    const now = Date.now();
+    let best = null;
+    for (const x of qs) {
+      if (x.id === q.id || S.isUnlearned(x.id)) continue; // 習っている範囲だけ
+      const p = S.progressOf(x.id);
+      if (p && p.last && now - p.last < 15 * 60000) continue; // さっき解いたばかりの問題は出さない
+      const shared = S.tagsOf(x.id).filter(t => tags.includes(t));
+      if (!shared.length) continue;
+      let score = shared.reduce((a, t) => a + (tagFreq[t] >= TAG_COMMON ? 1 : Math.log(qs.length / tagFreq[t])), 0) + (x.sub_unit === q.sub_unit ? 1.5 : 0);
+      if (score < REL_MIN_SCORE) continue;
+      score += (!p || p.status !== 'ok' ? .8 : 0) - (p && p.srs && p.srs.graduated ? 1 : 0) + Math.random() * .3;
+      if (!best || score > best.score) best = { id: x.id, score, tag: shared.slice().sort((a, b) => tagFreq[a] - tagFreq[b])[0] };
+    }
+    return best;
+  }
+
   /* ---------- 採点の取り消し（押し間違い用）。直前の1問だけ、採点前の状態に戻す ---------- */
   let undoSnap = null;
   const clone = v => v == null ? null : JSON.parse(JSON.stringify(v));
@@ -791,6 +834,7 @@
 
   function startReview(mode) {
     undoSnap = null;
+    resetRelated();
     reviewState.mode = mode;
     buildReviewPool();
     if (!reviewState.pool.length) { toast('この条件の復習はありません'); renderReview(); return; }
@@ -847,6 +891,7 @@
       top: tubeBar(st.counts, total, `残り ${st.pool.length}`, '復習をやめる'),
       qno: st.done + 1,
       showUnlearned: false,
+      related: relNote.get(q.id),
       onGrade: grade => {
         const snap = snapAnswer(q.id, 'review');
         S.recordAnswer(q.id, grade);
@@ -855,6 +900,10 @@
         st.counts[grade]++;
         st.done++;
         if (st.mode === 'wrong' && grade !== 'ok') st.pool.push(q.id);
+        if (grade === 'ng') {
+          const r = pickRelated(q);
+          if (r) { const at = st.pool.indexOf(r.id); if (at >= 0) st.pool.splice(at, 1); st.pool.unshift(r.id); noteRelated(r); }
+        }
         updateBadges();
         offerUndo(snap, grade);
         renderReviewCard();
@@ -1488,7 +1537,7 @@
     // ② 解き方（3つのビーカー）
     const solve = `<div class="hflow"><span class="st">${I('play', 's14')}始める</span>${I('chev', 's14')}<span class="st">答えを見る</span>${I('chev', 's14')}<span class="st on">ビーカーを選ぶ</span></div>
       <div class="beakers">${LAB.beaker('ng', I('x'), 'わからない')}${LAB.beaker('vague', I('tri'), 'あいまい')}${LAB.beaker('ok', I('o'), '完璧')}</div>
-      <div class="bcap"><span>間違い復習へ<br>（最初から）</span><span>間違い復習へ</span><span>次の復習は<br>もっと先に</span></div>`;
+      <div class="bcap"><span>次に関連問題<br>＋間違い復習へ</span><span>間違い復習へ</span><span>次の復習は<br>もっと先に</span></div>`;
 
     // ③ 試験管 → フラスコ
     const flaskFig = `<div class="htube">${LAB.tube([['ok', 9], ['vague', 3], ['ng', 2]], 20)}<span>14/20</span></div>
@@ -1573,6 +1622,7 @@
   S.pingDevice();
   // Firebase から公式問題の最新リストを取得できたら表示を更新（設定シートや入力中の画面は崩さない）
   S.ready.then(() => {
+    tagFreq = null;
     updateBadges();
     if (setup) return;
     if (document.body.classList.contains('insession')) {

@@ -659,3 +659,7 @@ dialog#help-dialog::backdrop { background: rgba(5,8,16,.7); }
 .pdays span.off { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.12); border: 0; background: repeating-linear-gradient(135deg, rgba(255,255,255,.03) 0 4px, transparent 4px 8px); }
 .pdays svg { width: 16px; height: 16px; }
 .pdays small { font-size: 10px; font-weight: 700; color: var(--dim); }
+
+/* ×のあとの関連問題の印 */
+.relchip { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-bottom: 8px; padding: 4px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 700; color: #ffb27a; background: rgba(251,146,60,.12); box-shadow: inset 0 0 0 1px rgba(251,146,60,.3); }
+.relchip b { font-weight: 900; color: #ffd0ad; margin-left: 2px; }
