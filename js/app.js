@@ -61,12 +61,114 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.className = ''; }, 2200);
   }
+  // ボタン付きのトースト（採点の取り消しなど）。少し長めに出す
+  function toastAction(msg, label, fn, kind = '') {
+    const el = document.getElementById('toast');
+    el.innerHTML = `<span>${esc(msg)}</span><button type="button">${esc(label)}</button>`;
+    el.className = 'show act ' + kind;
+    el.querySelector('button').addEventListener('click', () => { el.className = ''; clearTimeout(toastTimer); fn(); }, { once: true });
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 4500);
+  }
 
   const pct = v => v == null ? '—' : Math.round(v * 100) + '%';
 
   /* ---------- 見た目の設定（学習データとは別のキー） ---------- */
   const ui = (() => { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; } })();
   const saveUi = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) { /* 保存できなくても動く */ } };
+  // ui に入れるもの: routeHideUntil / lastConfig（前回の演習設定）/ presets（保存した範囲）/
+  //   log（日付→その日に解いた数）/ examDate（入試日）/ onboarded（最初の質問に答えたか）
+  // どれも学習データ（chemflash_data_v1）には入れない。消えても学習記録は無事。
+
+  /* ---------- 毎日の記録・連続日数（UIキーにだけ保存） ---------- */
+  const DAY = 86400000;
+  const dayKey = (t = Date.now()) => new Date(t).toLocaleDateString('sv-SE'); // YYYY-MM-DD（端末の日付）
+  function pruneLog() {
+    const keys = Object.keys(ui.log).sort();
+    while (keys.length > 120) delete ui.log[keys.shift()];
+  }
+  function initLog() {
+    if (ui.log) return;
+    // 初回だけ、今までの「最後に解いた日」から大まかな記録を作る（読むだけ）
+    ui.log = {};
+    const p = S.raw().progress || {};
+    for (const k in p) {
+      const l = p[k] && p[k].last;
+      if (l) { const d = dayKey(l); ui.log[d] = (ui.log[d] || 0) + 1; }
+    }
+    pruneLog();
+    saveUi();
+  }
+  function bumpLog(n) {
+    initLog();
+    const d = dayKey();
+    const v = Math.max(0, (ui.log[d] || 0) + n);
+    if (v) ui.log[d] = v; else delete ui.log[d];
+    pruneLog();
+    saveUi();
+  }
+  const todayCount = () => { initLog(); return ui.log[dayKey()] || 0; };
+  // 連続日数。1日だけ休んでも途切れない（2日続けて休むと途切れる）。休んだ日は数えない
+  function streakDays() {
+    initLog();
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    if (!ui.log[dayKey(d.getTime())]) d.setDate(d.getDate() - 1); // 今日はまだ0でも途切れ扱いにしない
+    let n = 0, gap = 0;
+    for (let i = 0; i < 400; i++) {
+      if (ui.log[dayKey(d.getTime())]) { n++; gap = 0; } else if (++gap >= 2) break;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
+  }
+
+  /* ---------- 入試日と「今日のおまかせ」 ---------- */
+  function examDaysLeft(date = ui.examDate) {
+    if (!date) return null;
+    const t = new Date(date + 'T00:00:00').getTime();
+    const today = new Date(dayKey() + 'T00:00:00').getTime();
+    return isNaN(t) ? null : Math.round((t - today) / DAY);
+  }
+  const activeIds = () => S.filterIds({ kind: 'all', value: '' }, 'all'); // 未習を除いた全問
+  const isSeen = id => { const p = S.progressOf(id); return !!(p && p.attempts); };
+  const unseenIds = () => activeIds().filter(id => !isSeen(id));
+  // 1日に出す新しい問題の数。入試日があれば「入試の1週間前までに一通り」になる数（5〜40問）
+  function newPerDay(unseenN = unseenIds().length, left = examDaysLeft()) {
+    if (!unseenN) return 0;
+    if (left == null || left <= 0) return Math.min(10, unseenN);
+    return Math.min(unseenN, Math.max(5, Math.min(40, Math.ceil(unseenN / Math.max(1, left - 7)))));
+  }
+  const dueAt = id => { const p = S.progressOf(id); return (p && p.srs && p.srs.due) || 0; };
+  const byDue = ids => ids.slice().sort((a, b) => dueAt(a) - dueAt(b)); // 期限が古い順
+  const PLAN = { due: 10, wrong: 5, min: 20 };
+  function planCounts() {
+    const due = S.dueTodayIds();
+    const dueSet = new Set(due);
+    const wrongN = S.reviewWrongIds().filter(id => !dueSet.has(id)).length;
+    const unseenN = unseenIds().length;
+    const d = Math.min(PLAN.due, due.length), w = Math.min(PLAN.wrong, wrongN);
+    const f = Math.min(unseenN, Math.max(newPerDay(unseenN), PLAN.min - d - w)); // 復習が少ない日は新しい問題で埋める
+    const extra = Math.max(0, Math.min(PLAN.min - (d + w + f), activeIds().length - (d + w + f)));
+    return { due: d, wrong: w, fresh: f, extra, total: d + w + f + extra };
+  }
+  // おまかせの出題順: 期限が来た復習（古い順）→ 間違い → 新しい問題（復習が少なければ多めに）→ それでも足りなければ おさらい
+  function planOrder() {
+    const due = byDue(S.dueTodayIds()).slice(0, PLAN.due);
+    const used = new Set(due);
+    const wrong = shuffle(S.reviewWrongIds().filter(id => !used.has(id))).slice(0, PLAN.wrong);
+    wrong.forEach(id => used.add(id));
+    const unseen = unseenIds();
+    const fresh = interleave(unseen).slice(0, Math.max(newPerDay(unseen.length), PLAN.min - due.length - wrong.length));
+    fresh.forEach(id => used.add(id));
+    let order = interleave(due.concat(wrong)).concat(fresh);
+    if (order.length < PLAN.min) {
+      const rest = shuffle(activeIds().filter(id => !used.has(id)));
+      const notGrad = rest.filter(id => { const p = S.progressOf(id); return !(p && p.srs && p.srs.graduated); });
+      const grad = rest.filter(id => !notGrad.includes(id));
+      order = order.concat(notGrad.concat(grad).slice(0, PLAN.min - order.length));
+    }
+    return order;
+  }
+  const dailyGoal = () => Math.min(50, Math.max(20, newPerDay() + 10));
 
   /* ---------- 単元（元素記号と色） ---------- */
   const UNIT_ORDER = ['化学基礎', '理論化学', '無機化学', '有機化学', '高分子化合物'];
@@ -224,7 +326,7 @@
   /* =========================================================
      演習（ホーム → 設定 → セッション → 結果）
      ========================================================= */
-  let lastConfig = null;
+  let lastConfig = ui.lastConfig || null; // 前回の演習設定（開き直しても覚えておく）
 
   function validSession(s) {
     return !!(s && Array.isArray(s.order) && s.config && s.counts && typeof s.pos === 'number');
@@ -250,35 +352,116 @@
 
   function renderHome() {
     setChrome(false);
-    const due = S.dueCount();
     const wrong = S.reviewWrongIds().length;
-    const quest = due ? { tag: 'DAILY QUEST', label: '今日の復習', n: due, color: '#45e3cf', act: 'due' }
-      : wrong ? { tag: 'QUEST', label: '間違い復習', n: wrong, color: '#fb923c', act: 'wrong' }
-      : { tag: 'QUEST', label: '演習をはじめる', n: 20, color: '#4cc9f0', act: 'setup' };
+    const pc = planCounts();
+    const done = todayCount(), goal = dailyGoal(), st = streakDays(), left = examDaysLeft();
+    const cleared = done >= goal;
+    const parts = [['復習', pc.due, '#45e3cf'], ['間違い', pc.wrong, '#fb923c'], ['新しい', pc.fresh, '#4cc9f0'], ['おさらい', pc.extra, '#a78bfa']].filter(p => p[1]);
+    const ring = r => { const C = 2 * Math.PI * 8; return `<svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="3"/><circle cx="10" cy="10" r="8" fill="none" stroke="#45e3cf" stroke-width="3" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - Math.min(1, r))).toFixed(1)}" transform="rotate(-90 10 10)"/></svg>`; };
     const active = S.questions().filter(q => !S.isUnlearned(q.id)).length;
     view.innerHTML = `${brandbar()}${levelBar()}
+      <div class="today">
+        <span class="tc ${st ? 'fire' : ''}">${I('flame')}<b>${st}</b>日連続</span>
+        <span class="tc ${cleared ? 'clear' : ''}">${ring(done / goal)}今日 <b>${done}</b>/${goal}</span>
+        <button class="tc ${left == null ? 'none' : ''}" data-act="exam">${I('cap')}${left == null ? '入試日を設定' : left > 0 ? `入試まで <b>${left}</b>日` : left === 0 ? '<b>今日</b>が入試' : '入試日を更新'}</button>
+      </div>
       <div class="body">
-        <button class="quest" data-act="quest" aria-label="${quest.label}をはじめる"><div class="fl">${LAB.flask({ layers: [[quest.color, .55]], glow: quest.color, bubbles: true })}</div>
-          <div class="qtx"><div class="tagq">${quest.tag}</div><span class="label">${quest.label}</span><div class="num">${quest.n}<small>問</small></div></div>
-          <span class="play">${I('play')}</span></button>
+        ${pc.total ? `<button class="quest" data-act="quest" aria-label="今日のおまかせをはじめる"><div class="fl">${LAB.flask({ layers: parts.map(([, n, c]) => [c, n / pc.total * .62]), glow: cleared ? '#45e3cf' : '#4cc9f0', bubbles: true, spark: cleared })}</div>
+          <div class="qtx"><div class="tagq">${cleared ? 'TODAY · CLEAR' : 'TODAY'}</div><span class="label">${cleared ? 'もう1セット' : '今日のおまかせ'}</span><div class="num">${pc.total}<small>問</small></div>
+            <div class="mix">${parts.map(([t, n, c]) => `<span style="--c:${c}"><i></i>${t} ${n}</span>`).join('')}</div></div>
+          <span class="play">${I('play')}</span></button>`
+        : `<button class="quest" data-act="setup"><div class="fl">${LAB.flask({})}</div><div class="qtx"><div class="tagq">QUEST</div><span class="label">出せる問題がありません</span><div class="mix"><span>範囲を選んで演習</span></div></div><span class="play">${I('play')}</span></button>`}
         <div class="card mol"><div class="head"><span class="label">単元</span><button class="r" data-go="stats"><b>${S.graduatedCount()}</b>/ ${active} 定着${I('chev', 's14')}</button></div>${LAB.molecule(unitAtoms(), null)}</div>
         <div class="quick">
           <button class="u1" data-act="setup"><span class="ib">${I('tube')}</span>演習</button>
-          <button class="u4" data-act="weak"><span class="ib">${I('target')}</span>苦手だけ</button>
+          <button class="u4" data-act="wrong"><span class="ib">${I('target')}${wrong ? `<i class="qn">${wrong > 99 ? '99+' : wrong}</i>` : ''}</span>間違い復習</button>
           <button class="u2" data-act="timed"><span class="ib">${I('timer')}</span>15分</button>
           <button class="u5" data-go="saved"><span class="ib">${I('star')}</span>保存</button>
         </div>
         ${routeHome()}
       </div>`;
-    view.querySelector('[data-act="quest"]').addEventListener('click', () => {
-      if (quest.act === 'setup') openSetup(); else { switchTab('review'); startReview(quest.act); }
+    const qb = view.querySelector('[data-act="quest"]');
+    if (qb) qb.addEventListener('click', () => startSession({ size: 'all', order: 'mix', scope: { kind: 'all', value: '' }, target: 'auto' }));
+    view.querySelectorAll('[data-act="setup"]').forEach(b => b.addEventListener('click', () => openSetup()));
+    view.querySelector('[data-act="wrong"]').addEventListener('click', () => {
+      if (!wrong) { toast('間違い復習はありません'); return; }
+      switchTab('review'); startReview('wrong');
     });
-    view.querySelector('[data-act="setup"]').addEventListener('click', () => openSetup());
-    view.querySelector('[data-act="weak"]').addEventListener('click', () =>
-      startSession({ size: '20', order: 'mix', scope: { kind: 'all', value: '' }, target: 'weak' }));
     view.querySelector('[data-act="timed"]').addEventListener('click', () =>
       startSession({ size: 'time', order: 'mix', scope: { kind: 'all', value: '' }, target: 'new' }));
     bindAtoms(u => { statsState.expandedUnit = u; switchTab('stats'); });
+  }
+
+  /* ---------- 入試日（下から出るシート） ---------- */
+  function openExam() {
+    closeSetup();
+    const unseenN = unseenIds().length;
+    const preview = v => {
+      const left = examDaysLeft(v);
+      if (!v || left == null) return `入試日がないときは、新しい問題を1日 <b>${newPerDay(unseenN, null)}</b>問 出します`;
+      if (left <= 0) return '過ぎた日付です。次の入試日を入れてください';
+      return `入試まで <b>${left}</b>日 → 新しい問題を1日 <b>${newPerDay(unseenN, left)}</b>問（まだ解いていない問題 ${unseenN}問）`;
+    };
+    sheetRoot.innerHTML = `<div class="dim" data-act="close"></div>
+      <div class="sheet" role="dialog" aria-label="入試日"><div class="handle"></div>
+        <div class="sh"><h2>入試日</h2><button class="iconbtn" data-act="close" aria-label="閉じる">${I('x', 's18')}</button></div>
+        <p class="snote">入れておくと、「今日のおまかせ」に出す新しい問題の数を、<b>入試の1週間前までに一通り終わる</b>ように自動で決めます（1日5〜40問）。</p>
+        <input type="date" id="exam-date" class="valsel datein" value="${esc(ui.examDate || '')}" min="${dayKey()}">
+        <div class="pool" id="exam-prev">${preview(ui.examDate)}</div>
+        <div class="btnrow">${ui.examDate ? `<button class="btn second" data-act="exam-clear">消す</button>` : ''}<button class="btn primary" data-act="exam-save">保存</button></div>
+      </div>`;
+    const input = document.getElementById('exam-date');
+    input.addEventListener('input', () => { document.getElementById('exam-prev').innerHTML = preview(input.value); });
+    sheetRoot.onclick = e => {
+      const b = e.target.closest('button, .dim');
+      if (!b) return;
+      const a = b.dataset.act;
+      if (a === 'close') closeSetup();
+      else if (a === 'exam-clear') { delete ui.examDate; saveUi(); closeSetup(); rerenderHere(); toast('入試日を消しました'); }
+      else if (a === 'exam-save') {
+        if (input.value && (examDaysLeft(input.value) || 0) <= 0) { toast('今日より後の日付を選んでください', 'bad'); return; }
+        if (input.value) ui.examDate = input.value; else delete ui.examDate;
+        saveUi(); closeSetup(); rerenderHere(); toast(input.value ? '入試日を保存しました' : '入試日を消しました', 'good');
+      }
+    };
+  }
+  const rerenderHere = () => { if (currentTab === 'home' || currentTab === 'me') renderers[currentTab](); };
+
+  /* ---------- 最初に開いたときだけ「どこまで習った？」 ----------
+     今まで使っている人（解いた記録・未習の設定・途中のセッションがある人）には聞かず、設定も変えない。 */
+  const ONBOARD = [
+    ['化学基礎だけ', '高1・化学基礎を勉強中', ['化学基礎']],
+    ['理論化学まで', '化学の前半（状態・反応）', ['化学基礎', '理論化学']],
+    ['無機化学まで', '有機はまだ', ['化学基礎', '理論化学', '無機化学']],
+    ['全部習った', '有機・高分子まで', UNIT_ORDER.slice()],
+  ];
+  function maybeOnboard() {
+    if (ui.onboarded) return;
+    const d = S.raw();
+    if (totalExp() > 0 || Object.keys(d.unlearned || {}).length || d.session) { ui.onboarded = 1; saveUi(); return; }
+    sheetRoot.innerHTML = `<div class="dim"></div>
+      <div class="sheet" role="dialog" aria-label="どこまで習った？"><div class="handle"></div>
+        <div class="sh"><h2>どこまで習った？</h2></div>
+        <p class="snote">まだ授業で習っていない単元は、出題から外しておきます。あとから <b>マイ › 学習範囲</b> でいつでも変えられます。</p>
+        <div class="onbl">${ONBOARD.map(([t, s, units], i) => `<button data-onb="${i}"><span class="els">${UNIT_ORDER.map(u => { const m = unitMeta(u); return `<span class="${units.includes(u) ? 'on' : ''}" style="--c:${m.color}">${m.sym}</span>`; }).join('')}</span><span class="tx"><b>${t}</b><small>${s}</small></span>${I('chev', 's16')}</button>`).join('')}</div>
+        <button class="btn second sm" data-act="onb-later">あとで決める（全部出す）</button>
+      </div>`;
+    const finish = () => { ui.onboarded = 1; saveUi(); sheetRoot.innerHTML = ''; sheetRoot.onclick = null; };
+    sheetRoot.onclick = e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.act === 'onb-later') { finish(); return; }
+      if (b.dataset.onb == null) return;
+      const learned = ONBOARD[+b.dataset.onb][2];
+      finish();
+      // 最新の問題リストが届いてから外す（届いた問題も漏れなく）
+      S.ready.then(() => {
+        UNIT_ORDER.filter(u => !learned.includes(u)).forEach(u => S.setUnlearnedScope(u, '', true));
+        updateBadges();
+        if (!document.body.classList.contains('insession')) renderers[currentTab]();
+        toast(learned.length === UNIT_ORDER.length ? '全部の単元から出します' : `${learned.map(u => unitMeta(u).short).join('・')}から出します`, 'good');
+      });
+    };
   }
 
   function bindAtoms(fn) {
@@ -294,25 +477,72 @@
 
   function openSetup() {
     const c = lastConfig || { size: '20', order: 'mix', scope: { kind: 'all', value: '' }, target: 'new' };
-    setup = { size: c.size, order: c.order, kind: c.scope.kind, value: c.scope.value, target: c.target };
+    const sc = c.scope || { kind: 'all' };
+    const key = q => q.unit + '\t' + q.sub_unit;
+    let picks = [];
+    if (sc.kind === 'pick') picks = (sc.picks || []).slice();
+    else if (sc.kind === 'unit') picks = S.subUnitsOfUnit(sc.value).map(su => sc.value + '\t' + su);
+    else if (sc.kind === 'sub') picks = [...new Set(S.questions().filter(q => q.sub_unit === sc.value).map(key))];
+    setup = {
+      size: c.size || '20', order: c.order || 'mix',
+      target: c.target === 'all' ? 'all' : 'new', // 旧「苦手」は間違い復習にまとめたので「新しい問題から」に
+      picks, tag: sc.kind === 'tag' ? sc.value : (sc.tag || ''),
+      diffs: sc.kind === 'diff' ? [String(sc.value)] : (sc.diffs || []).map(String),
+      fine: false, naming: false,
+    };
+    // 単元の一部だけ選んでいたら、分野の一覧を開いておく
+    setup.fine = unitGroups().some(g => { const n = g.subs.filter(x => setup.picks.includes(x.key)).length; return n && n < g.subs.length; });
     renderSetup();
   }
-  function closeSetup() { sheetRoot.innerHTML = ''; setup = null; }
+  function closeSetup() { sheetRoot.innerHTML = ''; sheetRoot.onclick = null; setup = null; }
 
-  function scopeLabel() {
-    if (setup.kind === 'unit') return unitMeta(setup.value).short + 'で';
-    if (setup.kind === 'sub') return setup.value + 'で';
-    if (setup.kind === 'tag') return '#' + setup.value + 'で';
-    if (setup.kind === 'diff') return '難易度' + setup.value + 'で';
-    return '';
+  // 単元ごとの分野一覧（問題数は未習を除いた数）
+  function unitGroups() {
+    const cnt = {};
+    for (const q of S.questions()) if (!S.isUnlearned(q.id)) cnt[q.unit + '\t' + q.sub_unit] = (cnt[q.unit + '\t' + q.sub_unit] || 0) + 1;
+    return orderedUnits().map(u => ({
+      unit: u,
+      subs: S.subUnitsOfUnit(u).map(su => ({ sub: su, key: u + '\t' + su, n: cnt[u + '\t' + su] || 0 })),
+    }));
+  }
+  function setupScope() {
+    if (!setup.picks.length && !setup.tag && !setup.diffs.length) return { kind: 'all', value: '' };
+    return { kind: 'pick', picks: setup.picks.slice(), tag: setup.tag, diffs: setup.diffs.slice() };
+  }
+  function scopeLabelOf(sc, groups = unitGroups()) {
+    if (!sc || sc.kind === 'all') return '';
+    if (sc.kind === 'unit') return unitMeta(sc.value).short;
+    if (sc.kind === 'sub' || sc.kind === 'tag' || sc.kind === 'diff') return sc.kind === 'tag' ? '#' + sc.value : sc.kind === 'diff' ? '難易度' + sc.value : sc.value;
+    const set = new Set(sc.picks || []);
+    const parts = [];
+    let loose = [];
+    for (const g of groups) {
+      const on = g.subs.filter(x => set.has(x.key));
+      if (!on.length) continue;
+      if (on.length === g.subs.length) parts.push(unitMeta(g.unit).short);
+      else loose = loose.concat(on.map(x => x.sub));
+    }
+    if (loose.length === 1) parts.push(loose[0]); else if (loose.length) parts.push(loose.length + '分野');
+    let s = parts.length > 2 ? parts.slice(0, 2).join('・') + 'ほか' : parts.join('・');
+    if (sc.tag) s += (s ? '・' : '') + '#' + sc.tag;
+    if (sc.diffs && sc.diffs.length) s += (s ? '・' : '') + '難' + sc.diffs.slice().sort().join('');
+    return s;
   }
 
   function renderSetup() {
+    const prevScroll = sheetRoot.querySelector('.sheet') ? sheetRoot.querySelector('.sheet').scrollTop : 0;
     const sizes = [['10', .25], ['20', .5], ['30', .75], ['all', 1]];
-    const units = orderedUnits();
-    const kindValues = setup.kind === 'sub' ? S.subUnits() : setup.kind === 'tag' ? S.allTags().sort((a, b) => a.localeCompare(b, 'ja')) : setup.kind === 'diff' ? ['1', '2', '3'] : null;
-    if (kindValues && !kindValues.includes(setup.value)) setup.value = kindValues[0] || '';
+    const groups = unitGroups();
+    const set = new Set(setup.picks);
+    const unitState = g => { const n = g.subs.filter(x => set.has(x.key)).length; return n === 0 ? '' : n === g.subs.length ? 'on' : 'part'; };
+    const sc = setupScope();
+    const pool = scopeIds(sc, 'all');
+    const fresh = pool.filter(id => !isSeen(id)).length;
+    const label = scopeLabelOf(sc, groups);
     const sizeLabel = setup.size === 'time' ? '15分' : setup.size === 'all' ? '全部' : setup.size + '問';
+    const tags = S.allTags().sort((a, b) => a.localeCompare(b, 'ja'));
+    const presets = ui.presets || [];
+    const canSave = sc.kind !== 'all';
     sheetRoot.innerHTML = `<div class="dim" data-act="close"></div>
       <div class="sheet" role="dialog" aria-label="演習の設定"><div class="handle"></div>
         <div class="sh"><h2>演習</h2><button class="iconbtn" data-act="close" aria-label="閉じる">${I('x', 's18')}</button></div>
@@ -320,46 +550,93 @@
           const on = setup.size === v;
           return `<button class="${on ? 'on' : ''}" data-size="${v}">${LAB.vial([[on ? '#4cc9f0' : 'rgba(76,201,240,.55)', f]], on ? '#4cc9f0' : null)}${v === 'all' ? '<small>全部</small>' : v}</button>`;
         }).join('')}<button class="${setup.size === 'time' ? 'on' : ''}" data-size="time"><span class="tm">${I('timer')}</span><small>15分</small></button></div></div>
-        <div><div class="label" style="margin-bottom:7px">範囲</div>
-          <div class="eltiles"><button class="${setup.kind === 'all' ? 'on' : ''}" style="--c:#c9d3ea" data-kind="all">全<small>すべて</small></button>${units.map(u => {
-            const m = unitMeta(u);
-            return `<button class="${setup.kind === 'unit' && setup.value === u ? 'on' : ''}" style="--c:${m.color}" data-unit="${esc(u)}">${esc(m.sym)}<small>${esc(m.short)}</small></button>`;
+        <div>
+          <div class="lrow"><span class="label">範囲<small>いくつでも選べます</small></span>${canSave && !setup.naming ? `<button class="lnk" data-act="psave">${I('star', 's14')}この範囲を保存</button>` : ''}</div>
+          ${setup.naming ? `<div class="pname"><input id="preset-name" maxlength="16" value="${esc(label)}" placeholder="例: 2学期中間"><button class="btn primary sm" data-act="pok">保存</button><button class="btn second sm" data-act="pcancel">やめる</button></div>` : ''}
+          ${presets.length ? `<div class="presets">${presets.map((p, i) => `<span class="pre"><button data-preset="${i}">${I('star', 's14')}${esc(p.name)}</button><button class="del" data-pdel="${i}" aria-label="${esc(p.name)}を消す">${I('x', 's14')}</button></span>`).join('')}</div>` : ''}
+          <div class="eltiles"><button class="${set.size ? '' : 'on'}" style="--c:#c9d3ea" data-act="pick-all">全<small>すべて</small></button>${groups.map(g => {
+            const m = unitMeta(g.unit), st = unitState(g);
+            return `<button class="${st}" style="--c:${m.color}" data-unit="${esc(g.unit)}">${esc(m.sym)}<small>${esc(m.short)}</small>${st === 'part' ? '<i class="pdot"></i>' : ''}</button>`;
           }).join('')}</div>
-          <div class="icopts"><button class="${setup.kind === 'sub' ? 'on' : ''}" data-kind="sub">${I('layers')}分野</button><button class="${setup.kind === 'tag' ? 'on' : ''}" data-kind="tag">${I('hash')}キーワード</button><button class="${setup.kind === 'diff' ? 'on' : ''}" data-kind="diff">${I('flame')}難易度</button></div>
-          ${kindValues ? `<select class="valsel" id="setup-value">${kindValues.map(v => `<option value="${esc(v)}" ${v === setup.value ? 'selected' : ''}>${esc(setup.kind === 'diff' ? '難易度 ' + v : v)}</option>`).join('')}</select>` : ''}
+          <button class="finetg ${setup.fine ? 'open' : ''}" data-act="fine">${I('layers', 's14')}分野で選ぶ${I('chevd', 's14')}</button>
+          ${setup.fine ? `<div class="fine">${groups.map(g => {
+            const m = unitMeta(g.unit);
+            return `<div class="fg" style="--c:${m.color}"><div class="fh">${elm(g.unit)}<b>${esc(g.unit)}</b></div><div class="chips">${g.subs.map(x =>
+              `<button class="chip ${set.has(x.key) ? 'on' : ''} ${x.n ? '' : 'none'}" data-key="${esc(x.key)}">${esc(x.sub)}<small>${x.n || '未習'}</small></button>`).join('')}</div></div>`;
+          }).join('')}</div>` : ''}
+          <div class="filt">
+            <div class="dp"><span class="label">難易度</span>${['1', '2', '3'].map(d => `<button class="${setup.diffs.includes(d) ? 'on' : ''}" data-diff="${d}" aria-label="難易度${d}">${diffDots(+d)}</button>`).join('')}</div>
+            <select class="pill ${setup.tag ? 'on' : ''}" id="setup-tag" aria-label="キーワード"><option value="">#キーワード</option>${tags.map(t => `<option value="${esc(t)}" ${t === setup.tag ? 'selected' : ''}>#${esc(t)}</option>`).join('')}</select>
+          </div>
         </div>
         <div class="seg2">
           <div><div class="label" style="margin-bottom:7px">並べ方</div><div class="seg"><button class="${setup.order === 'mix' ? 'on' : ''}" data-order="mix">${I('shuffle', 's14')}ミックス</button><button class="${setup.order === 'block' ? 'on' : ''}" data-order="block">${I('layers', 's14')}分野ごと</button></div></div>
-          <div><div class="label" style="margin-bottom:7px">出す問題</div><div class="seg"><button class="${setup.target === 'new' ? 'on' : ''}" data-target="new">未着手</button><button class="${setup.target === 'all' ? 'on' : ''}" data-target="all">全部</button><button class="${setup.target === 'weak' ? 'on' : ''}" data-target="weak">苦手</button></div></div>
+          <div><div class="label" style="margin-bottom:7px">出す問題</div><div class="seg"><button class="${setup.target === 'new' ? 'on' : ''}" data-target="new">新しい問題から</button><button class="${setup.target === 'all' ? 'on' : ''}" data-target="all">全部</button></div></div>
         </div>
-        <button class="btn primary" data-act="start">${I('play', 'fillc')}${esc(scopeLabel())} ${sizeLabel} はじめる</button>
+        <div class="pool">${pool.length ? `対象 <b>${pool.length}</b>問（まだ解いていない問題 ${fresh}問）` : '<span class="warn">この条件に出せる問題がありません</span>'}</div>
+        <button class="btn primary" data-act="start" ${pool.length ? '' : 'disabled'}>${I('play', 'fillc')}${esc(label ? label + 'で' : '')} ${sizeLabel} はじめる</button>
       </div>`;
-    sheetRoot.querySelectorAll('[data-act="close"]').forEach(b => b.addEventListener('click', closeSetup));
-    sheetRoot.querySelectorAll('[data-size]').forEach(b => b.addEventListener('click', () => { setup.size = b.dataset.size; renderSetup(); }));
-    sheetRoot.querySelectorAll('[data-unit]').forEach(b => b.addEventListener('click', () => { setup.kind = 'unit'; setup.value = b.dataset.unit; renderSetup(); }));
-    sheetRoot.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => {
-      const k = b.dataset.kind;
-      if (setup.kind !== k) { setup.kind = k; setup.value = ''; }
-      else if (k !== 'all') { setup.kind = 'all'; setup.value = ''; }
+    const sheet = sheetRoot.querySelector('.sheet');
+    sheet.scrollTop = prevScroll;
+    const nameInput = document.getElementById('preset-name');
+    if (nameInput) { nameInput.focus(); nameInput.select(); }
+    document.getElementById('setup-tag').addEventListener('change', e => { setup.tag = e.target.value; renderSetup(); });
+    sheetRoot.onclick = e => {
+      const b = e.target.closest('button, .dim');
+      if (!b || !setup) return;
+      const d = b.dataset;
+      if (d.act === 'close') { closeSetup(); return; }
+      if (d.size) setup.size = d.size;
+      else if (d.act === 'pick-all') setup.picks = [];
+      else if (d.unit) {
+        const g = groups.find(x => x.unit === d.unit);
+        const keys = g.subs.map(x => x.key);
+        setup.picks = unitState(g) === 'on' ? setup.picks.filter(k => !keys.includes(k)) : [...new Set(setup.picks.concat(keys))];
+      } else if (d.key) setup.picks = set.has(d.key) ? setup.picks.filter(k => k !== d.key) : setup.picks.concat(d.key);
+      else if (d.act === 'fine') setup.fine = !setup.fine;
+      else if (d.diff) setup.diffs = setup.diffs.includes(d.diff) ? setup.diffs.filter(x => x !== d.diff) : setup.diffs.concat(d.diff);
+      else if (d.order) setup.order = d.order;
+      else if (d.target) setup.target = d.target;
+      else if (d.act === 'psave') setup.naming = true;
+      else if (d.act === 'pcancel') setup.naming = false;
+      else if (d.act === 'pok') {
+        const name = (document.getElementById('preset-name').value || '').trim() || label || '保存した範囲';
+        ui.presets = [{ name, picks: setup.picks.slice(), tag: setup.tag, diffs: setup.diffs.slice() }].concat((ui.presets || []).filter(p => p.name !== name)).slice(0, 8);
+        saveUi();
+        setup.naming = false;
+        toast('範囲を保存しました', 'good');
+      } else if (d.preset) {
+        const p = presets[+d.preset];
+        if (p) { setup.picks = (p.picks || []).slice(); setup.tag = p.tag || ''; setup.diffs = (p.diffs || []).slice(); }
+      } else if (d.pdel) {
+        const p = presets[+d.pdel];
+        if (p && confirm(`保存した範囲「${p.name}」を消しますか？（学習記録は消えません）`)) { ui.presets = presets.filter((_, i) => i !== +d.pdel); saveUi(); }
+      } else if (d.act === 'start') {
+        if (startSession({ size: setup.size, order: setup.order, scope: setupScope(), target: setup.target })) closeSetup();
+        return;
+      } else return;
       renderSetup();
-    }));
-    const vs = document.getElementById('setup-value');
-    if (vs) vs.addEventListener('change', e => { setup.value = e.target.value; renderSetup(); });
-    sheetRoot.querySelectorAll('[data-order]').forEach(b => b.addEventListener('click', () => { setup.order = b.dataset.order; renderSetup(); }));
-    sheetRoot.querySelectorAll('[data-target]').forEach(b => b.addEventListener('click', () => { setup.target = b.dataset.target; renderSetup(); }));
-    sheetRoot.querySelector('[data-act="start"]').addEventListener('click', () => {
-      const config = {
-        size: setup.size,
-        order: setup.order,
-        scope: { kind: setup.kind, value: setup.kind === 'all' ? '' : setup.value },
-        target: setup.target,
-      };
-      if (startSession(config)) closeSetup();
+    };
+  }
+
+  // 範囲で絞る。kind:'pick' は「単元＋タブ＋分野」の組の集合＋キーワード＋難易度（複数可）。それ以外は今までの形
+  function scopeIds(scope, target) {
+    if (!scope || scope.kind !== 'pick') return S.filterIds(scope, target);
+    const picks = new Set(scope.picks || []);
+    const diffs = (scope.diffs || []).map(String);
+    return S.filterIds({ kind: 'all', value: '' }, target).filter(id => {
+      const q = S.byId(id);
+      if (!q) return false;
+      if (picks.size && !picks.has(q.unit + '\t' + q.sub_unit)) return false;
+      if (scope.tag && !(' ' + q.tags + ' ').includes(' ' + scope.tag + ' ')) return false;
+      if (diffs.length && !diffs.includes(String(q.difficulty))) return false;
+      return true;
     });
   }
 
   function buildOrder(config) {
-    let ids = S.filterIds(config.scope, config.target);
+    if (config.target === 'auto') return planOrder(); // 今日のおまかせ
+    let ids = scopeIds(config.scope, config.target);
     ids = config.order === 'block' ? blockOrder(ids) : interleave(ids);
     if (config.target === 'new') {
       const seen = id => { const p = S.progressOf(id); return p && p.attempts; };
@@ -375,7 +652,8 @@
       toast('この条件に出せる問題がありません', 'bad');
       return false;
     }
-    lastConfig = config;
+    undoSnap = null;
+    if (config.target !== 'auto') { lastConfig = config; ui.lastConfig = config; saveUi(); }
     S.raw().session = {
       config, order, pos: 0, stopped: false,
       counts: { ok: 0, vague: 0, ng: 0, unlearned: 0 },
@@ -404,11 +682,14 @@
       qno: s.pos + 1,
       showUnlearned: true,
       onGrade: grade => {
+        const snap = snapAnswer(q.id, 'home');
         S.recordAnswer(q.id, grade);
+        bumpLog(1);
         s.counts[grade]++;
         s.pos++;
         S.persistLocal();
         updateBadges();
+        offerUndo(snap, grade);
         renderPractice();
       },
       onUnlearned: () => {
@@ -429,7 +710,7 @@
     const s = S.raw().session;
     const c = s.counts;
     const done = c.ok + c.vague + c.ng;
-    const full = !s.stopped && s.config.size === 'all' && s.config.scope.kind === 'all' && s.config.target !== 'weak';
+    const full = !s.stopped && s.config.size === 'all' && s.config.scope.kind === 'all' && s.config.target !== 'weak' && s.config.target !== 'auto';
     if (full && done > 0) { S.raw().totalCycles = (S.raw().totalCycles || 0) + 1; }
     S.raw().session = null;
     S.persistLocal();
@@ -467,13 +748,49 @@
   const reviewState = { mode: 'due', sub: '', type: '', pool: null, active: false, counts: { ok: 0, vague: 0, ng: 0 }, done: 0 };
 
   function buildReviewPool() {
-    const ids = reviewState.mode === 'due'
-      ? S.dueTodayIds(reviewState.sub, reviewState.type)
-      : S.reviewWrongIds(reviewState.sub, reviewState.type);
-    reviewState.pool = shuffle(reviewState.mode === 'due' ? ids.slice(0, DUE_CAP) : ids);
+    // 今日の復習は期限が古い順に20問（問題の並び順で先頭の単元ばかりにならないように）→ 分野が続かないよう混ぜる
+    reviewState.pool = reviewState.mode === 'due'
+      ? interleave(byDue(S.dueTodayIds(reviewState.sub, reviewState.type)).slice(0, DUE_CAP))
+      : shuffle(S.reviewWrongIds(reviewState.sub, reviewState.type));
+  }
+
+  /* ---------- 採点の取り消し（押し間違い用）。直前の1問だけ、採点前の状態に戻す ---------- */
+  let undoSnap = null;
+  const clone = v => v == null ? null : JSON.parse(JSON.stringify(v));
+  function snapAnswer(id, tab) {
+    const d = S.raw();
+    return {
+      id, tab, day: dayKey(),
+      prog: clone(d.progress[id]), unl: !!d.unlearned[id],
+      session: clone(d.session), cycles: d.totalCycles || 0,
+      review: { pool: reviewState.pool ? reviewState.pool.slice() : null, counts: { ...reviewState.counts }, done: reviewState.done, active: reviewState.active },
+    };
+  }
+  const GRADE_WORD = { ok: '完璧', vague: 'あいまい', ng: 'わからない' };
+  function offerUndo(snap, grade) {
+    undoSnap = snap;
+    toastAction(`「${GRADE_WORD[grade]}」で記録`, '取り消す', doUndo, grade === 'ok' ? 'good' : '');
+  }
+  function doUndo() {
+    const u = undoSnap;
+    undoSnap = null;
+    if (!u) return;
+    const d = S.raw();
+    if (u.prog) d.progress[u.id] = u.prog; else delete d.progress[u.id];
+    if (u.unl) d.unlearned[u.id] = true;
+    d.session = u.session;
+    d.totalCycles = u.cycles;
+    S.persist();
+    if (u.day === dayKey()) bumpLog(-1);
+    Object.assign(reviewState, u.review);
+    updateBadges();
+    if (u.tab === 'review') { currentTab = 'review'; markTab('review'); closeSetup(); renderReview(); }
+    else switchTab('home');
+    toast('取り消しました');
   }
 
   function startReview(mode) {
+    undoSnap = null;
     reviewState.mode = mode;
     buildReviewPool();
     if (!reviewState.pool.length) { toast('この条件の復習はありません'); renderReview(); return; }
@@ -531,13 +848,15 @@
       qno: st.done + 1,
       showUnlearned: false,
       onGrade: grade => {
+        const snap = snapAnswer(q.id, 'review');
         S.recordAnswer(q.id, grade);
+        bumpLog(1);
         st.pool.shift();
         st.counts[grade]++;
         st.done++;
         if (st.mode === 'wrong' && grade !== 'ok') st.pool.push(q.id);
-        if (grade === 'ok') toast('完璧！', 'good');
         updateBadges();
+        offerUndo(snap, grade);
         renderReviewCard();
       },
     });
@@ -791,6 +1110,7 @@
           <button class="li u5" data-go="saved"><span class="ib">${I('star', 's18')}</span><span class="tx">保存した問題</span><span class="rt">${saved}${I('chev', 's16')}</span></button>
           <button class="li u3" data-go="custom"><span class="ib">${I('pencil', 's18')}</span><span class="tx">自作問題</span><span class="rt">${customs}${I('chev', 's16')}</span></button>
           <button class="li ug" data-act="scope-go"><span class="ib">${I('layers', 's18')}</span><span class="tx">学習範囲<small>習っていない単元を外す</small></span><span class="rt">${unlearnedN ? '未習 ' + unlearnedN : ''}${I('chev', 's16')}</span></button>
+          <button class="li u1" data-act="exam"><span class="ib">${I('cap', 's18')}</span><span class="tx">入試日<small>おまかせの新しい問題の数が決まる</small></span><span class="rt">${examDaysLeft() > 0 ? 'あと' + examDaysLeft() + '日' : '未設定'}${I('chev', 's16')}</span></button>
           <button class="li u2" data-go="sync"><span class="ib">${I('cloud', 's18')}</span><span class="tx">同期・バックアップ<small>友達に教える・フィードバックもここ</small></span><span class="rt">${d.syncId ? '<i class="ok"></i>同期中' : ''}${I('chev', 's16')}</span></button>
           <button class="li" data-act="help"><span class="ib">${I('help', 's18')}</span><span class="tx">使い方</span><span class="rt">${I('chev', 's16')}</span></button>
         </div>
@@ -1122,6 +1442,7 @@
     const act = e.target.closest('[data-act]');
     if (!act) return;
     if (act.dataset.act === 'help') openHelp();
+    else if (act.dataset.act === 'exam') openExam();
     else if (act.dataset.act === 'route-hide') {
       e.preventDefault();
       ui.routeHideUntil = Date.now() + 7 * 86400000; // 7日間は出さない
@@ -1146,13 +1467,23 @@
 
     // ① ホーム（見本の画面に番号）
     const home = `<div class="shot"><div class="shot-in">
-        <div class="level">${co(1)}<div class="lvbadge">${I('flask')}</div><div class="info"><div class="line1"><span class="lvl">Lv.3</span><span class="ltitle">見習い化学者</span><span class="exp-n">120 / 150 EXP</span></div><div class="exp"><span style="width:60%"></span></div></div></div>
+        <div class="level"><div class="lvbadge">${I('flask')}</div><div class="info"><div class="line1"><span class="lvl">Lv.3</span><span class="ltitle">見習い化学者</span><span class="exp-n">120 / 150 EXP</span></div><div class="exp"><span style="width:60%"></span></div></div></div>
+        <div class="today">${co(1)}<span class="tc fire">${I('flame')}<b>5</b>日連続</span><span class="tc">今日 <b>8</b>/20</span><span class="tc">${I('cap')}あと <b>111</b>日</span></div>
         <div class="body">
-          <div class="quest">${co(2)}<div class="fl">${LAB.flask({ layers: [['#45e3cf', .55]], glow: '#45e3cf', bubbles: true })}</div><div class="qtx"><div class="tagq">DAILY QUEST</div><span class="label">今日の復習</span><div class="num">12<small>問</small></div></div><span class="play">${I('play')}</span></div>
+          <div class="quest">${co(2)}<div class="fl">${LAB.flask({ layers: [['#45e3cf', .2], ['#fb923c', .12], ['#4cc9f0', .3]], glow: '#4cc9f0', bubbles: true })}</div><div class="qtx"><div class="tagq">TODAY</div><span class="label">今日のおまかせ</span><div class="num">20<small>問</small></div><div class="mix"><span style="--c:#45e3cf"><i></i>復習 6</span><span style="--c:#fb923c"><i></i>間違い 4</span><span style="--c:#4cc9f0"><i></i>新しい 10</span></div></div><span class="play">${I('play')}</span></div>
           <div class="card mol">${co(3)}<div class="head"><span class="label">単元</span><span class="r"><b>36</b>/ 880 定着</span></div>${LAB.molecule(demoAtoms, null)}</div>
-          <div class="quick">${co(4)}<button class="u1"><span class="ib">${I('tube')}</span>演習</button><button class="u4"><span class="ib">${I('target')}</span>苦手だけ</button><button class="u2"><span class="ib">${I('timer')}</span>15分</button><button class="u5"><span class="ib">${I('star')}</span>保存</button></div>
+          <div class="quick">${co(4)}<button class="u1"><span class="ib">${I('tube')}</span>演習</button><button class="u4"><span class="ib">${I('target')}</span>間違い復習</button><button class="u2"><span class="ib">${I('timer')}</span>15分</button><button class="u5"><span class="ib">${I('star')}</span>保存</button></div>
         </div></div></div>
-      <ol class="coleg"><li><b>1</b>レベルと EXP</li><li><b>2</b>押すだけで、いまやる問題から</li><li><b>3</b>単元ごとの理解度</li><li><b>4</b>範囲を選ぶ・苦手だけ・15分・保存</li></ol>`;
+      <ol class="coleg"><li><b>1</b>続けた日数・今日の数・入試まで</li><li><b>2</b>押すだけで今日の分（おまかせ）</li><li><b>3</b>単元ごとの理解度</li><li><b>4</b>範囲を選ぶ・間違い復習・15分・保存</li></ol>`;
+
+    // 今日のおまかせ・入試日・続けた日数
+    const planFig = `<div class="pbar"><span style="--c:#45e3cf">復習</span><span style="--c:#fb923c">間違い</span><span style="--c:#4cc9f0">新しい</span><span style="--c:#a78bfa">おさらい</span></div>
+      <div class="pcap"><span>期限が古い順<br>10問まで</span><span>5問<br>まで</span><span>習った<br>範囲から</span><span>足りない<br>とき</span></div>
+      <p class="cap">▶ を押すだけで、この順に 20問ほど出る</p>
+      <div class="pexam">${I('cap', 's16')}<span>入試まで <b>111</b>日</span>${I('chev', 's14')}<span>新しい問題 1日 <b>8</b>問</span></div>
+      <p class="cap sm">入試日を入れると、入試の1週間前までに一通り終わる数に自動で（マイ › 入試日）</p>
+      <div class="pdays">${[1, 1, 1, 0, 1, 1, 1].map((on, i) => `<span class="${on ? 'on' : 'off'}">${on ? I('flame') : ''}<small>${'月火水木金土日'[i]}</small></span>`).join('')}</div>
+      <p class="cap">1日休んでも、続けた日数は途切れない（2日休むとリセット）</p>`;
 
     // ② 解き方（3つのビーカー）
     const solve = `<div class="hflow"><span class="st">${I('play', 's14')}始める</span>${I('chev', 's14')}<span class="st">答えを見る</span>${I('chev', 's14')}<span class="st on">ビーカーを選ぶ</span></div>
@@ -1186,14 +1517,14 @@
     const node = (fill, label, sub) => `<div class="nd"><div class="v">${fill == null ? `<span class="cap-ic">${I('cap')}</span>` : LAB.vial([['#45e3cf', fill]], '#45e3cf')}</div><b>${label}</b><span>${sub}</span></div>`;
     const review = `<div class="tl">${node(.33, '今日', '完璧')}<i class="ar"><small>7日</small>${I('chev', 's14')}</i>${node(.66, '7日後', '完璧')}<i class="ar"><small>30日</small>${I('chev', 's14')}</i>${node(1, '30日後', '完璧')}<i class="ar">${I('chev', 's14')}</i>${node(null, '定着', '卒業')}</div>
       <div class="tlbad">${I('undo', 's16')}<span><b class="o">×</b> や <b class="y">△</b> を付けると、7日後にまた出る（× は最初から）</span></div>
-      <div class="two"><div><span class="t">${I('rotate', 's16')}今日の復習</span><p>期限が来た問題だけ（1度に20問まで）</p></div><div><span class="t o">${I('target', 's16')}間違い復習</span><p>×・△の問題を、完璧になるまで</p></div></div>`;
+      <div class="two"><div><span class="t">${I('rotate', 's16')}今日の復習</span><p>期限が来た問題を古い順に（1度に20問まで）</p></div><div><span class="t o">${I('target', 's16')}間違い復習</span><p>×・△の問題を、完璧になるまで</p></div></div>`;
 
     // ⑦ 下のタブ
     const tabs = [['house', 'ホーム', 'すぐ始める'], ['rotate', '復習', '今日の分'], ['book', '書庫', '全問を見る'], ['chart', '分析', '苦手を探す'], ['user', 'マイ', '保存・同期']];
     const tabFig = `<div class="htabs">${tabs.map(([ic, n, d]) => `<div><span class="ic2">${I(ic)}</span><b>${n}</b><span>${d}</span></div>`).join('')}</div>`;
 
     // ⑧ 便利な機能
-    const tips = [['star', 'var(--pink)', '保存', 'あとで見返す問題に'], ['pencil', 'var(--green)', 'メモ', '覚え方などを一言'], ['eyeoff', 'var(--violet)', 'まだ習ってない', '出題から外す（書庫で戻せる）'], ['phone', 'var(--cyan)', 'ホーム画面に追加', 'ブラウザのメニューから。アプリのように開ける']];
+    const tips = [['undo', 'var(--cyan)', '取り消す', '押し間違えたら、下に出るボタンで直前の1問を戻す'], ['layers', 'var(--gold)', '範囲を保存', '演習の範囲は いくつでも選べて、名前を付けて保存できる'], ['star', 'var(--pink)', '保存', 'あとで見返す問題に'], ['pencil', 'var(--green)', 'メモ', '覚え方などを一言'], ['eyeoff', 'var(--violet)', 'まだ習ってない', '出題から外す（書庫・マイで戻せる）'], ['phone', 'var(--cyan)', 'ホーム画面に追加', 'ブラウザのメニューから。アプリのように開ける']];
     const tipFig = `<div class="htips">${tips.map(([ic, c, n, d]) => `<div style="--c:${c}"><span class="ib">${I(ic)}</span><b>${n}</b><span>${d}</span></div>`).join('')}</div>`;
 
     // ⑨ Route とは
@@ -1206,9 +1537,10 @@
         <div class="ft"><span class="go">サイトを見る${I('ext')}</span><span class="url">高校生・浪人生<br>数学・物理・化学</span></div></a></div>
       <p class="rnote">${I('check', 's14')}ChemFlash はこのまま無料で使えます。Route は気になった人だけどうぞ（ホームの広告は × で7日間かくせます）。</p></section>`;
 
-    const toc = [['home', 'ホーム'], ['solve', '解き方'], ['flask', 'フラスコ'], ['exp', 'EXP'], ['mol', '単元'], ['review', '復習'], ['tabs', 'タブ'], ['route', 'Route']];
+    const toc = [['home', 'ホーム'], ['plan', 'おまかせ'], ['solve', '解き方'], ['flask', 'フラスコ'], ['exp', 'EXP'], ['mol', '単元'], ['review', '復習'], ['tabs', 'タブ'], ['route', 'Route']];
     helpBody.innerHTML = `<nav class="htoc">${toc.map(([id, n]) => `<button data-h="${id}">${n}</button>`).join('')}</nav>
       ${helpSec('home', 'house', 'var(--cyan)', 'ホームの見かた', home)}
+      ${helpSec('plan', 'play', 'var(--cyan)', '今日のおまかせ', planFig)}
       ${helpSec('solve', 'tube', 'var(--green)', '問題の解き方', solve)}
       ${helpSec('flask', 'flask', 'var(--teal)', '試験管とフラスコ', flaskFig)}
       ${helpSec('exp', 'star', 'var(--gold)', 'EXP とレベル', expFig, `<p class="hnote">いま <b>Lv.${li.lv} ${esc(li.title)}</b>（${li.exp} EXP）${li.nextTitle ? `。次の称号は「${esc(li.nextTitle)}」` : ''}</p>`)}
@@ -1237,6 +1569,7 @@
 
   updateBadges();
   switchTab('home');
+  maybeOnboard();
   S.pingDevice();
   // Firebase から公式問題の最新リストを取得できたら表示を更新（設定シートや入力中の画面は崩さない）
   S.ready.then(() => {
