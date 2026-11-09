@@ -74,15 +74,54 @@
     if (!url) { wrap.innerHTML = '<p class="muted small">同期サーバが未設定です</p>'; return; }
     if (!AdminAuth.isSignedIn()) { wrap.innerHTML = NEED_LOGIN; return; }
     try {
-      const res = await fetch(await AdminAuth.authed(url + '/chemflash/pings.json?shallow=true'));
+      const res = await fetch(await AdminAuth.authed(url + '/chemflash/pings.json'));
       if (!res.ok) throw new Error('読み込みに失敗 (' + res.status + ')');
-      const data = (await res.json()) || {};
-      const count = Object.keys(data).length;
-      wrap.innerHTML = `<p style="font-size:1.4rem;font-weight:800;margin:4px 0">${count}<span style="font-size:.85rem;font-weight:400;color:var(--text-dim)"> 端末</span></p>
-        <p class="muted small" style="margin:0">アプリを開いたことのあるユニーク端末数</p>`;
+      renderUserStats((await res.json()) || {});
     } catch(e) {
       wrap.innerHTML = `<p class="muted small">読み込みに失敗しました: ${esc(e.message)}</p>`;
     }
+  }
+
+  /* 端末ごとに残っているのは「最後に開いた時刻（at）」だけ。それで直近に開いた端末を数える */
+  function renderUserStats(data) {
+    const wrap = document.getElementById('user-stats');
+    const DAY = 864e5;
+    const now = Date.now();
+    const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+    let mine = '';
+    try { mine = localStorage.getItem('chemflash_device_id') || ''; } catch (e) {}
+    const list = Object.entries(data).map(([id, v]) => ({
+      id, at: v && typeof v.at === 'number' ? v.at : 0,
+    })).sort((a, b) => b.at - a.at);
+    const n = (from) => list.filter(d => d.at >= from).length;
+    const today = n(midnight.getTime()), week = n(now - 7 * DAY), month = n(now - 30 * DAY);
+    const box = (num, label, color) => `<div style="flex:1;min-width:70px;padding:8px 10px;border:1px solid var(--line);border-radius:10px">
+        <div style="font-size:1.25rem;font-weight:800;color:${color}">${num}</div>
+        <div class="muted small">${label}</div></div>`;
+    const ago = (at) => {
+      if (!at) return '不明';
+      const d = new Date(at);
+      const hm = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+      const days = Math.floor((midnight.getTime() - new Date(at).setHours(0, 0, 0, 0)) / DAY);
+      const rel = days <= 0 ? '今日' : days === 1 ? '昨日' : days + '日前';
+      return `${d.getMonth() + 1}/${d.getDate()} ${hm}（${rel}）`;
+    };
+    const SHOW = 200;
+    const rows = list.slice(0, SHOW).map(d => `<div class="stat-row" style="display:flex;gap:10px;align-items:center;padding:6px 0">
+        <span style="flex:1">${ago(d.at)}</span>
+        <span class="tags">${esc(d.id.replace(/^dev-/, '').slice(0, 6))}</span>
+        ${d.id === mine ? '<span class="chip custom">この端末</span>' : ''}</div>`).join('');
+    wrap.innerHTML = `<p style="font-size:1.4rem;font-weight:800;margin:4px 0">${list.length}<span style="font-size:.85rem;font-weight:400;color:var(--text-dim)"> 端末</span></p>
+      <p class="muted small" style="margin:0 0 10px">アプリを開いたことのあるユニーク端末数</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${box(today, '今日開いた', 'var(--green)')}
+        ${box(week, '7日以内', 'var(--cyan)')}
+        ${box(month, '30日以内', 'var(--violet)')}
+        ${box(list.length - month, '30日より前', 'var(--text-dim)')}
+      </div>
+      <p class="muted small" style="margin:8px 0 0">※ 端末ごとに「最後に開いた日時」だけが残るので、その日時で数えています（過去の推移や、週に何日使ったかはわかりません）。</p>
+      ${list.length ? `<details style="margin-top:8px"><summary class="small" style="cursor:pointer">端末ごとの最後に開いた日時（新しい順${list.length > SHOW ? '・' + SHOW + '件まで' : ''}）</summary>
+        <div style="margin-top:4px">${rows}</div></details>` : ''}`;
   }
   document.getElementById('stats-refresh').addEventListener('click', loadUserStats);
 
